@@ -12,9 +12,9 @@ if not BASE_URL:
     if os.path.isdir("/data"):
         # On Render, BASE_URL MUST be set — otherwise QRs point to a LAN IP
         print("[warn] BASE_URL not set on Render. QRs will be broken. Set the env var!")
-        BASE_URL = "https://mdrrmo-inventory-system.onrender.com/"  # placeholder, must be replaced
+        BASE_URL = "https://invsys-hlx3.onrender.com"  # placeholder, must be replaced
     else:
-        BASE_URL = "https://mdrrmo-inventory-system.onrender.com/"
+        BASE_URL = "https://invsys-hlx3.onrender.com"
 
 # On Render, a persistent disk is mounted at /data.
 # Locally, these fall back to the project folder.
