@@ -19,13 +19,40 @@
 <div class="toolbar">
   <a class="btn btn-primary" href="{{ url_for('add_item') }}">Add item</a>
   <a class="btn" href="{{ url_for('scan') }}">Scan QR</a>
-  <div style="margin-left: auto; display: flex; align-items: center; gap: 8px; padding: 0 12px;
-              font-size: 12.5px; color: var(--text-subtle); font-weight: 500;">
-    <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--success);
-                 box-shadow: 0 0 8px var(--success); animation: badgePulse 2s ease-in-out infinite;"></span>
-    Live
+
+  <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+    <a class="btn btn-sm" href="{{ url_for('download_db') }}" title="Download a backup of the database">
+      ⬇ Backup
+    </a>
+    <button class="btn btn-sm" type="button" onclick="document.getElementById('dbUpload').click()" title="Restore from a .db file">
+      ⬆ Restore
+    </button>
+    <form id="dbRestoreForm" method="POST" action="{{ url_for('upload_db') }}" enctype="multipart/form-data" style="display:none">
+      <input id="dbUpload" type="file" name="db_file" accept=".db" onchange="confirmRestore()">
+    </form>
+    <div style="display: flex; align-items: center; gap: 8px; padding: 0 10px;
+                font-size: 12.5px; color: var(--text-subtle); font-weight: 500;">
+      <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--success);
+                   box-shadow: 0 0 8px var(--success); animation: badgePulse 2s ease-in-out infinite;"></span>
+      Live
+    </div>
   </div>
 </div>
+
+<script>
+  function confirmRestore() {
+    const file = document.getElementById('dbUpload').files[0];
+    if (!file) return;
+    if (confirm(
+      "Restore the database from:\n\n" + file.name +
+      "\n\nThis will REPLACE your current data. The existing DB is saved as database.db.bak as a safety net.\n\nContinue?"
+    )) {
+      document.getElementById('dbRestoreForm').submit();
+    } else {
+      document.getElementById('dbUpload').value = "";
+    }
+  }
+</script>
 
 <div class="card" style="padding: 0; overflow: hidden;">
   {% if items %}

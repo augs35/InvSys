@@ -549,6 +549,85 @@ def toggle_item(item_id):
 
 
 # ============================================================
+# DATABASE BACKUP / RESTORE
+# ============================================================
+@app.route("/download-db")
+def download_db():
+    """Download a copy of the current SQLite database."""
+    if not os.path.exists(DB_PATH):
+        flash("No database file found yet.", "error")
+        return redirect(url_for("index"))
+
+    # Give it a friendly filename with a timestamp
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    filename = f"inventory-backup-{stamp}.db"
+    return send_file(
+        DB_PATH,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/x-sqlite3",
+    )
+
+
+@app.route("/upload-db", methods=["POST"])
+def upload_db():
+    """Restore the database from an uploaded .db file."""
+    file = request.files.get("db_file")
+    if not file or file.filename == "":
+        flash("Please choose a .db file first.", "error")
+        return redirect(url_for("index"))
+
+    if not file.filename.lower().endswith(".db"):
+        flash("The file must be a .db file.", "error")
+        return redirect(url_for("index"))
+
+    # Read into memory, validate it's actually a SQLite file
+    # (SQLite files always begin with "SQLite format 3\0")
+    data = file.read()
+    if not data.startswith(b"SQLite format 3\x00"):
+        flash("That file doesn't look like a SQLite database.", "error")
+        return redirect(url_for("index"))
+
+    # Back up the current DB before overwriting
+    if os.path.exists(DB_PATH):
+        backup = DB_PATH + ".bak"
+        try:
+            os.replace(DB_PATH, backup)
+            print(f"[db] Backed up current DB to {backup}")
+        except OSError as e:
+            flash(f"Couldn't back up the current DB: {e}", "error")
+            return redirect(url_for("index"))
+
+    # Write the new DB
+    try:
+        with open(DB_PATH, "wb") as fh:
+            fh.write(data)
+    except OSError as e:
+        # Restore the backup if writing failed
+        if os.path.exists(DB_PATH + ".bak"):
+            os.replace(DB_PATH + ".bak", DB_PATH)
+        flash(f"Failed to save uploaded database: {e}", "error")
+        return redirect(url_for("index"))
+
+    # Sanity check: make sure the new DB has the tables we expect
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute("SELECT 1 FROM items LIMIT 1")
+        conn.close()
+    except sqlite3.Error as e:
+        # Roll back to the backup — bad DB
+        if os.path.exists(DB_PATH + ".bak"):
+            os.replace(DB_PATH + ".bak", DB_PATH)
+        flash(f"Uploaded file isn't a valid inventory database: {e}", "error")
+        return redirect(url_for("index"))
+
+    # Run migrations in case the uploaded DB is from an older version
+    init_db()
+
+    flash("Database restored successfully. Previous DB saved as database.db.bak.", "success")
+    return redirect(url_for("index"))
+
+# ============================================================
 # QR IMAGE + REGEN
 # ============================================================
 @app.route("/qr/<int:item_id>.png")
