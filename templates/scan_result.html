@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>{{ title }}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:            #0a0b0f;
+    --surface:       #14161d;
+    --surface-2:     #191c24;
+    --border:        #23262f;
+    --border-strong: #2e323d;
+    --text:          #f3f4f6;
+    --text-muted:    #9ba1ad;
+    --text-subtle:   #6b7280;
+    --accent:        #6366f1;
+    --success:       #10b981;
+    --success-soft:  rgba(16, 185, 129, 0.12);
+    --warning:       #f59e0b;
+    --warning-soft:  rgba(245, 158, 11, 0.12);
+    --danger:        #ef4444;
+    --danger-soft:   rgba(239, 68, 68, 0.12);
+    --shadow-lg:     0 12px 32px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.3);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    min-height: 100vh;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: -300px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 700px;
+    height: 500px;
+    background: radial-gradient(ellipse at center,
+      {% if not success %}rgba(239,68,68,0.18)
+      {% elif action == 'return' %}rgba(99,102,241,0.18)
+      {% else %}rgba(16,185,129,0.18){% endif %},
+      transparent 65%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .panel {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 400px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 40px 24px 28px;
+    box-shadow: var(--shadow-lg);
+    text-align: center;
+    animation: rise 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(20px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
+  }
+
+  /* Icon ring */
+  .icon-ring {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    margin: 0 auto 22px;
+    display: grid;
+    place-items: center;
+    position: relative;
+    animation: pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.05s both;
+  }
+  @keyframes pop {
+    0%   { transform: scale(0.5); opacity: 0; }
+    100% { transform: scale(1);   opacity: 1; }
+  }
+  .icon-ring::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    animation: ringPulse 2s ease-out infinite;
+  }
+  @keyframes ringPulse {
+    0%   { transform: scale(1);   opacity: 0.6; }
+    100% { transform: scale(1.5); opacity: 0; }
+  }
+  .icon-ring svg {
+    width: 34px;
+    height: 34px;
+    position: relative;
+    z-index: 1;
+  }
+
+  {% if not success %}
+  .icon-ring { background: var(--danger-soft); color: var(--danger); }
+  .icon-ring::before { background: var(--danger-soft); }
+  {% elif action == 'return' %}
+  .icon-ring { background: rgba(99, 102, 241, 0.12); color: var(--accent); }
+  .icon-ring::before { background: rgba(99, 102, 241, 0.12); }
+  {% else %}
+  .icon-ring { background: var(--success-soft); color: var(--success); }
+  .icon-ring::before { background: var(--success-soft); }
+  {% endif %}
+
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    line-height: 1.3;
+    margin-bottom: 6px;
+  }
+
+  .item-name {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+  }
+
+  .detail-grid {
+    display: flex;
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 24px;
+    text-align: left;
+  }
+  .detail-cell {
+    flex: 1;
+    background: var(--surface-2);
+    padding: 12px 14px;
+  }
+  .detail-cell .k {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-subtle);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 3px;
+  }
+  .detail-cell .v {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    word-break: break-word;
+  }
+
+  .byline {
+    font-size: 13px;
+    color: var(--text-subtle);
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+  .byline strong {
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .footer-note {
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-subtle);
+  }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <div class="icon-ring">
+      {% if not success %}
+        <!-- X -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      {% elif action == 'return' %}
+        <!-- Arrow down into tray -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v12"></path>
+          <polyline points="6 11 12 17 18 11"></polyline>
+          <path d="M4 21h16"></path>
+        </svg>
+      {% else %}
+        <!-- Check -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      {% endif %}
+    </div>
+
+    {% if success %}
+      <h1>{{ 'Borrowed' if action == 'borrow' else 'Returned' }}</h1>
+      <div class="item-name">{{ item.name }}</div>
+
+      <div class="detail-grid">
+        <div class="detail-cell">
+          <div class="k">Quantity</div>
+          <div class="v">{{ qty }}</div>
+        </div>
+        <div class="detail-cell">
+          <div class="k">Remaining</div>
+          <div class="v">{{ stock_left }}</div>
+        </div>
+      </div>
+
+      <div class="byline">
+        <strong>{{ who }}</strong><br>
+        {{ when_pretty }}
+      </div>
+
+      <div class="footer-note">
+        You can close this page now.
+      </div>
+    {% else %}
+      <h1>{{ title }}</h1>
+      <div class="item-name">{{ message }}</div>
+      <div class="footer-note">
+        You can close this page now.
+      </div>
+    {% endif %}
+  </div>
+</body>
+</html>

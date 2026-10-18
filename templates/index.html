@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="hero">
+  <div class="stat">
+    <div class="stat-label">Total items</div>
+    <div class="stat-value">{{ items|length }}</div>
+  </div>
+  <div class="stat green">
+    <div class="stat-label">Available</div>
+    <div class="stat-value">{{ items|selectattr('status','equalto','available')|list|length }}</div>
+  </div>
+  <div class="stat orange">
+    <div class="stat-label">Borrowed</div>
+    <div class="stat-value">{{ items|selectattr('status','equalto','borrowed')|list|length }}</div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <a class="btn btn-primary" href="{{ url_for('add_item') }}">Add item</a>
+  <a class="btn" href="{{ url_for('scan') }}">Scan QR</a>
+  <div style="margin-left: auto; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+              font-size: 12.5px; color: var(--text-subtle); font-weight: 500;">
+    <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--success);
+                 box-shadow: 0 0 8px var(--success); animation: badgePulse 2s ease-in-out infinite;"></span>
+    Live
+  </div>
+</div>
+
+<div class="card" style="padding: 0; overflow: hidden;">
+  {% if items %}
+  <table>
+    <thead>
+      <tr>
+        <th style="width:60px">#</th>
+        <th>Name</th>
+        <th style="width:110px">In stock</th>
+        <th style="width:140px">Status</th>
+        <th style="width:220px"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td data-label="#" style="color:var(--text-subtle); font-variant-numeric:tabular-nums;">{{ it.id }}</td>
+        <td data-label="Name"><a href="{{ url_for('view_item', item_id=it.id) }}">{{ it.name }}</a></td>
+        <td data-label="In stock">
+          <span style="font-weight:500; font-variant-numeric:tabular-nums;
+                       color:{% if it.quantity == 0 %}var(--warning){% else %}var(--text){% endif %};">
+            {{ it.quantity }}
+          </span>
+        </td>
+        <td data-label="Status">
+          {% if it.quantity == 0 %}
+            <span class="badge badge-borrowed">Out of stock</span>
+          {% else %}
+            <span class="badge badge-available">Available</span>
+          {% endif %}
+        </td>
+        <td data-label="Actions">
+          <div style="display:flex; gap:6px; justify-content:flex-end">
+            <a class="btn btn-sm" href="{{ url_for('view_item', item_id=it.id) }}">View</a>
+            <a class="btn btn-sm" href="{{ url_for('edit_item', item_id=it.id) }}">Edit</a>
+            <form method="POST" action="{{ url_for('delete_item', item_id=it.id) }}" style="display:inline" onsubmit="return confirm('Delete {{ it.name }}?');">
+              <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon">—</div>
+    <h3>No items yet</h3>
+    <p>Add your first item to get started.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

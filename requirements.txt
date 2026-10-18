@@ -1,0 +1,4 @@
+Flask>=3.1
+qrcode[pil]>=8.0
+Pillow>=11.0
+gunicorn>=21.2.0

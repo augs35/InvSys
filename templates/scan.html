@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="text-align:center">
+  <h2>📷 Scan Item QR</h2>
+  <p style="color:var(--muted);margin-bottom:20px">
+    Point your camera at an item's QR code. It'll ask for your name, then record the borrow or return.
+  </p>
+  <div id="reader" style="max-width:420px;margin:0 auto;border-radius:20px;overflow:hidden"></div>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+  function onScanSuccess(text) {
+    html5QrCode.stop().then(() => { window.location.href = text; });
+  }
+  const html5QrCode = new Html5Qrcode("reader");
+  Html5Qrcode.getCameras().then(devices => {
+    if (!devices.length) throw "No camera";
+    const back = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[devices.length-1];
+    html5QrCode.start(back.id, { fps: 10, qrbox: 250 }, onScanSuccess);
+  }).catch(err => {
+    document.getElementById("reader").innerHTML =
+      "<p style='color:#fca5a5;padding:20px'>Camera unavailable. Use your phone's built-in camera app to scan the QR instead.</p>";
+  });
+</script>
+{% endblock %}

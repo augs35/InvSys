@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="card">
+  <div class="item-header">
+    <div>
+      <div class="item-title">{{ item.name }}</div>
+      <div style="margin-top:10px">
+        {% if item.quantity == 0 %}
+          <span class="badge badge-borrowed">Out of stock</span>
+        {% else %}
+          <span class="badge badge-available">Available</span>
+        {% endif %}
+      </div>
+    </div>
+    <div style="text-align:center">
+      <div class="qr-wrap" id="qrThumb" role="button" tabindex="0" aria-label="Enlarge QR code">
+        <img src="{{ url_for('qr_image', item_id=item.id) }}" alt="QR">
+      </div>
+      <div class="qr-hint">Click to enlarge</div>
+    </div>
+  </div>
+
+  <div class="info-grid">
+    <div class="info-cell"><div class="k">ID</div><div class="v">#{{ item.id }}</div></div>
+    <div class="info-cell"><div class="k">In stock</div><div class="v">{{ item.quantity }}</div></div>
+    <div class="info-cell"><div class="k">On loan</div><div class="v">{{ outstanding }}</div></div>
+    <div class="info-cell"><div class="k">Description</div><div class="v">{{ item.description or '—' }}</div></div>
+  </div>
+
+  <div class="form-actions">
+    {% if item.quantity > 0 %}
+      <a class="btn btn-success" href="{{ url_for('borrow_item', item_id=item.id) }}">Borrow</a>
+    {% endif %}
+    {% if outstanding > 0 %}
+      <a class="btn btn-primary" href="{{ url_for('return_item', item_id=item.id) }}">Return</a>
+    {% endif %}
+    <a class="btn" href="{{ url_for('edit_item', item_id=item.id) }}">Edit</a>
+    <form method="POST" action="{{ url_for('delete_item', item_id=item.id) }}" style="display:inline" onsubmit="return confirm('Delete this item?');">
+      <button class="btn btn-danger" type="submit">Delete</button>
+    </form>
+    <a class="btn" href="{{ url_for('index') }}">Back</a>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Activity</h3>
+  {% if logs %}
+    <div class="timeline">
+      {% for log in logs %}
+      <div class="timeline-item {{ log.action }}">
+        <div class="timeline-head">
+          {% if log.action == 'borrow' %}Borrowed{% else %}Returned{% endif %}
+          · <strong>{{ log.qty }}</strong>
+        </div>
+        <div class="timeline-meta">
+          <strong>{{ log.borrower }}</strong> · {{ log.timestamp | pretty_time }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty">
+      <div class="empty-icon">—</div>
+      <p>No activity yet.</p>
+    </div>
+  {% endif %}
+</div>
+
+<div class="qr-modal" id="qrModal" onclick="closeQR(event)">
+  <button class="qr-modal-close" aria-label="Close" onclick="closeQR(event, true)">✕</button>
+  <img id="qrLarge" src="{{ url_for('qr_image', item_id=item.id) }}" alt="QR Code">
+</div>
+
+<script>
+  const modal = document.getElementById('qrModal');
+  const thumb = document.getElementById('qrThumb');
+  function openQR() {
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeQR(e, force) {
+    if (force || e.target === modal) {
+      modal.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+  }
+  thumb.addEventListener('click', openQR);
+  thumb.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openQR(); }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeQR(e, true);
+  });
+</script>
+
+{% endblock %}

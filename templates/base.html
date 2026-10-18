@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0a0b0f">
+<title>{% block title %}Inventory{% endblock %} · Inventory</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <a href="{{ url_for('index') }}" class="brand">
+      <div class="brand-icon">📦</div>
+      <span class="brand-text">Inventory</span>
+    </a>
+    <nav>
+      <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' }}">Dashboard</a>
+      <a href="{{ url_for('add_item') }}" class="{{ 'active' if request.endpoint == 'add_item' }}">Add Item</a>
+      <a href="{{ url_for('scan') }}" class="{{ 'active' if request.endpoint == 'scan' }}">Scan</a>
+    </nav>
+  </div>
+</header>
+
+<div class="container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <div class="flash {{ cat }}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</div>
+
+</body>
+</html>

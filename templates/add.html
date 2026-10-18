@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width: 560px;">
+  <h2>Add item</h2>
+  <form method="POST">
+    <label>Name</label>
+    <input name="name" required placeholder="" autofocus>
+
+    <label>Description</label>
+    <textarea name="description" rows="3" placeholder="Optional notes"></textarea>
+
+    <label>Quantity</label>
+    <input name="quantity" type="number" value="1" min="0">
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Save</button>
+      <a class="btn" href="{{ url_for('index') }}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
