@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#0a0b0f">
+<meta name="theme-color" content="#07080c">
 <title>{% block title %}Inventory{% endblock %} · Inventory</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
@@ -29,6 +29,33 @@
     {% for cat, msg in messages %}
       <div class="flash {{ cat }}">{{ msg }}</div>
     {% endfor %}
+    {% if messages %}
+      {# If any flash was a success, show the backup toast #}
+      <div id="backupToast" class="backup-toast" role="status" aria-live="polite">
+        <div class="backup-toast-icon">💾</div>
+        <div class="backup-toast-body">
+          <div class="backup-toast-title">Data changed</div>
+          <div class="backup-toast-text">Save a backup of your database?</div>
+        </div>
+        <a class="backup-toast-btn" href="{{ url_for('download_db') }}">Download</a>
+        <button class="backup-toast-close" aria-label="Dismiss" onclick="dismissToast()">✕</button>
+      </div>
+      <script>
+        function dismissToast() {
+          const t = document.getElementById('backupToast');
+          if (t) { t.classList.remove('show'); setTimeout(() => t.remove(), 250); }
+        }
+        setTimeout(() => {
+          const t = document.getElementById('backupToast');
+          if (t) t.classList.add('show');
+        }, 600);
+        // Auto-dismiss after 12 seconds if untouched
+        setTimeout(() => {
+          const t = document.getElementById('backupToast');
+          if (t) dismissToast();
+        }, 12000);
+      </script>
+    {% endif %}
   {% endwith %}
   {% block content %}{% endblock %}
 </div>
