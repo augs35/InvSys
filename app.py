@@ -593,10 +593,12 @@ def scan():
 # ENTRY POINT
 # ============================================================
 if __name__ == "__main__":
-    init_db()
     app.run(
         host="0.0.0.0",
         port=5000,
         debug=True,
         ssl_context="adhoc",
     )
+    
+# Initialize DB when the app is imported (by Gunicorn on Render, or by `python app.py` locally)
+init_db()
