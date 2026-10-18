@@ -12,10 +12,18 @@
 
 <header>
   <div class="header-inner">
-    <a href="{{ url_for('index') }}" class="brand">
-      <div class="brand-icon">📦</div>
-      <span class="brand-text">Inventory</span>
-    </a>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <a href="{{ url_for('index') }}" class="brand">
+        <div class="brand-icon">📦</div>
+        <span class="brand-text">Inventory</span>
+      </a>
+      <button class="btn-refresh" onclick="location.reload()" title="Refresh page" aria-label="Refresh page">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
+          <polyline points="21 3 21 8 16 8"></polyline>
+        </svg>
+      </button>
+    </div>
     <nav>
       <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' }}">Dashboard</a>
       <a href="{{ url_for('add_item') }}" class="{{ 'active' if request.endpoint == 'add_item' }}">Add Item</a>

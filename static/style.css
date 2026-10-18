@@ -916,3 +916,49 @@ tbody a:hover::after { transform: scaleX(1); }
     max-width: none;
   }
 }
+
+/* ============ REFRESH BUTTON (next to brand) ============ */
+.btn-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.btn-refresh:hover {
+  background: var(--surface-hover);
+  border-color: #3a4150;
+  color: var(--text);
+  transform: translateY(-1px);
+}
+.btn-refresh:active {
+  transform: translateY(0);
+}
+.btn-refresh svg {
+  transition: transform 0.25s ease;
+}
+.btn-refresh:hover svg {
+  transform: rotate(30deg);
+}
+.btn-refresh:active svg {
+  animation: spin 0.35s ease;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Mobile: collapse to icon only */
+@media (max-width: 640px) {
+  .btn-refresh-label { display: none; }
+  .btn-refresh { padding: 0 8px; height: 28px; }
+}

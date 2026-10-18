@@ -22,10 +22,10 @@
 
   <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
     <a class="btn btn-sm" href="{{ url_for('download_db') }}" title="Download a backup of the database">
-      ⬇ Backup
+      ⬇️ Backup
     </a>
     <button class="btn btn-sm" type="button" onclick="document.getElementById('dbUpload').click()" title="Restore from a .db file">
-      ⬆ Restore
+      ⬆️ Restore
     </button>
     <form id="dbRestoreForm" method="POST" action="{{ url_for('upload_db') }}" enctype="multipart/form-data" style="display:none">
       <input id="dbUpload" type="file" name="db_file" accept=".db" onchange="confirmRestore()">
