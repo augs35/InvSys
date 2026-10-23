@@ -1,6 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
 
+{% if folder %}
+<div class="breadcrumb">
+  <a href="{{ url_for('folders_root') }}">Home</a>
+  <span class="crumb-sep">›</span>
+  <a href="{{ url_for('folder_view', folder_id=folder.id) }}">{{ folder.name }}</a>
+  <span class="crumb-sep">›</span>
+  <span class="crumb-current">{{ item.name }}</span>
+</div>
+{% endif %}
+
 <div class="card">
   <div class="item-header">
     <div>

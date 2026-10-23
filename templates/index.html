@@ -18,15 +18,24 @@
 
 <div class="toolbar">
   <a class="btn btn-primary" href="{{ url_for('add_item') }}">Add item</a>
-  <a class="btn" href="{{ url_for('folders_list') }}">📁 Folders</a>
   <a class="btn" href="{{ url_for('scan') }}">Scan QR</a>
 
   <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
-    <a class="btn btn-sm" href="{{ url_for('download_db') }}" title="Download a backup of the database">⬇ Backup</a>
-    <button class="btn btn-sm" type="button" onclick="document.getElementById('dbUpload').click()" title="Restore from a .db file">⬆ Restore</button>
+    <a class="btn btn-sm" href="{{ url_for('download_db') }}" title="Download a backup of the database">
+      ⬇️ Backup
+    </a>
+    <button class="btn btn-sm" type="button" onclick="document.getElementById('dbUpload').click()" title="Restore from a .db file">
+      ⬆️ Restore
+    </button>
     <form id="dbRestoreForm" method="POST" action="{{ url_for('upload_db') }}" enctype="multipart/form-data" style="display:none">
       <input id="dbUpload" type="file" name="db_file" accept=".db" onchange="confirmRestore()">
     </form>
+    <div style="display: flex; align-items: center; gap: 8px; padding: 0 10px;
+                font-size: 12.5px; color: var(--text-subtle); font-weight: 500;">
+      <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--success);
+                   box-shadow: 0 0 8px var(--success); animation: badgePulse 2s ease-in-out infinite;"></span>
+      Live
+    </div>
   </div>
 </div>
 
@@ -57,155 +66,103 @@
     <button type="button" id="searchClear" class="search-clear" aria-label="Clear search" style="display:none;">✕</button>
   </div>
   <span id="searchCount" style="font-size: 12.5px; color: var(--text-subtle); align-self: center;"></span>
-
-  <div class="view-switcher" role="tablist" aria-label="View mode">
-    <button class="view-btn active" data-view="details" title="Details">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
-    </button>
-    <button class="view-btn" data-view="small" title="Small icons">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="4" height="4"/><rect x="10" y="3" width="4" height="4"/><rect x="17" y="3" width="4" height="4"/><rect x="3" y="10" width="4" height="4"/><rect x="10" y="10" width="4" height="4"/><rect x="17" y="10" width="4" height="4"/><rect x="3" y="17" width="4" height="4"/><rect x="10" y="17" width="4" height="4"/><rect x="17" y="17" width="4" height="4"/></svg>
-    </button>
-    <button class="view-btn" data-view="medium" title="Medium icons">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-    </button>
-    <button class="view-btn" data-view="large" title="Large icons">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/></svg>
-    </button>
-    <button class="view-btn" data-view="xlarge" title="Extra large icons">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="9" height="9"/><rect x="12" y="3" width="9" height="9"/><rect x="3" y="12" width="9" height="9"/><rect x="12" y="12" width="9" height="9"/></svg>
-    </button>
-  </div>
 </div>
 
-<div class="view-container" id="viewContainer" data-view="details">
+<div class="card" style="padding: 0; overflow: hidden;">
   {% if items %}
-  <!-- DETAILS VIEW -->
-  <div class="card view-details" style="padding: 0; overflow: hidden;">
-    <table id="itemsTable">
-      <thead>
-        <tr>
-          <th style="width:60px">#</th>
-          <th>Name</th>
-          <th>Folder</th>
-          <th style="width:110px">In stock</th>
-          <th style="width:140px">Status</th>
-          <th style="width:220px"></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for it in items %}
-        <tr data-search="{{ (it.name ~ ' ' ~ (it.description or '') ~ ' ' ~ (it.folder_name or '')) | lower }}">
-          <td style="color:var(--text-subtle); font-variant-numeric:tabular-nums;">{{ it.id }}</td>
-          <td><a href="{{ url_for('view_item', item_id=it.id) }}">{{ it.name }}</a></td>
-          <td>{% if it.folder_name %}📁 {{ it.folder_name }}{% else %}<span style="color:var(--text-subtle);">—</span>{% endif %}</td>
-          <td><span style="font-weight:500; font-variant-numeric:tabular-nums; color:{% if it.quantity == 0 %}var(--warning){% else %}var(--text){% endif %};">{{ it.quantity }}</span></td>
-          <td>
-            {% if it.quantity == 0 %}
-              <span class="badge badge-borrowed">Out of stock</span>
-            {% else %}
-              <span class="badge badge-available">Available</span>
-            {% endif %}
-          </td>
-          <td>
-            <div style="display:flex; gap:6px; justify-content:flex-end">
-              <a class="btn btn-sm" href="{{ url_for('view_item', item_id=it.id) }}">View</a>
-              <a class="btn btn-sm" href="{{ url_for('edit_item', item_id=it.id) }}">Edit</a>
-              <form method="POST" action="{{ url_for('delete_item', item_id=it.id) }}" style="display:inline" onsubmit="return confirm('Delete {{ it.name }}?');">
-                <button class="btn btn-sm btn-danger" type="submit">Delete</button>
-              </form>
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  <table id="itemsTable">
+    <thead>
+      <tr>
+        <th style="width:60px">#</th>
+        <th>Name</th>
+        <th style="width:110px">In stock</th>
+        <th style="width:140px">Status</th>
+        <th style="width:220px"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr data-search="{{ (it.name ~ ' ' ~ (it.description or '')) | lower }}">
+        <td data-label="#" style="color:var(--text-subtle); font-variant-numeric:tabular-nums;">{{ it.id }}</td>
+        <td data-label="Name"><a href="{{ url_for('view_item', item_id=it.id) }}">{{ it.name }}</a></td>
+        <td data-label="In stock">
+          <span style="font-weight:500; font-variant-numeric:tabular-nums;
+                       color:{% if it.quantity == 0 %}var(--warning){% else %}var(--text){% endif %};">
+            {{ it.quantity }}
+          </span>
+        </td>
+        <td data-label="Status">
+          {% if it.quantity == 0 %}
+            <span class="badge badge-borrowed">Out of stock</span>
+          {% else %}
+            <span class="badge badge-available">Available</span>
+          {% endif %}
+        </td>
+        <td data-label="Actions">
+          <div style="display:flex; gap:6px; justify-content:flex-end">
+            <a class="btn btn-sm" href="{{ url_for('view_item', item_id=it.id) }}">View</a>
+            <a class="btn btn-sm" href="{{ url_for('edit_item', item_id=it.id) }}">Edit</a>
+            <form method="POST" action="{{ url_for('delete_item', item_id=it.id) }}" style="display:inline" onsubmit="return confirm('Delete {{ it.name }}?');">
+              <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <script>
+    (function () {
+      const input = document.getElementById('searchInput');
+      const clearBtn = document.getElementById('searchClear');
+      const count = document.getElementById('searchCount');
+      const table = document.getElementById('itemsTable');
+      if (!input || !table) return;
+      const rows = Array.from(table.querySelectorAll('tbody tr'));
 
-  <!-- ICON VIEWS (small/medium/large/xlarge) -->
-  <div class="view-grid grid-small">
-    {% for it in items %}
-    <div class="item-tile" data-search="{{ (it.name ~ ' ' ~ (it.description or '') ~ ' ' ~ (it.folder_name or '')) | lower }}">
-      <a class="item-tile-link" href="{{ url_for('view_item', item_id=it.id) }}">
-        <div class="item-tile-thumb">
-          <img src="{{ url_for('qr_image', item_id=it.id) }}" alt="QR">
-        </div>
-        <div class="item-tile-name">{{ it.name }}</div>
-        <div class="item-tile-meta">
-          <span class="{% if it.quantity == 0 %}qty-zero{% endif %}">{{ it.quantity }}</span>
-          {% if it.folder_name %}<span style="color:var(--text-subtle);">· {{ it.folder_name }}</span>{% endif %}
-        </div>
-      </a>
-    </div>
-    {% endfor %}
-  </div>
+      function apply() {
+        const q = input.value.trim().toLowerCase();
+        let visible = 0;
+        rows.forEach(r => {
+          const hay = r.getAttribute('data-search') || '';
+          const match = !q || hay.includes(q);
+          r.style.display = match ? '' : 'none';
+          if (match) visible++;
+        });
+        // Count indicator
+        if (q) {
+          count.textContent = `${visible} of ${rows.length}`;
+          count.style.color = visible === 0 ? 'var(--warning)' : 'var(--text-subtle)';
+        } else {
+          count.textContent = '';
+          count.style.color = 'var(--text-subtle)';
+        }
+        // Show clear button only when there's text
+        clearBtn.style.display = q ? 'grid' : 'none';
+      }
+
+      input.addEventListener('input', apply);
+      clearBtn.addEventListener('click', () => {
+        input.value = '';
+        apply();
+        input.focus();
+      });
+      // Escape clears
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { input.value = ''; apply(); }
+      });
+
+      apply();
+    })();
+  </script>
+
   {% else %}
-  <div class="card">
-    <div class="empty">
-      <div class="empty-icon">—</div>
-      <h3>No items yet</h3>
-      <p>Add your first item to get started.</p>
-    </div>
+  <div class="empty">
+    <div class="empty-icon">—</div>
+    <h3>No items yet</h3>
+    <p>Add your first item to get started.</p>
   </div>
   {% endif %}
 </div>
-
-<script>
-  // Search (works across views)
-  (function () {
-    const input = document.getElementById('searchInput');
-    const clearBtn = document.getElementById('searchClear');
-    const count = document.getElementById('searchCount');
-    if (!input) return;
-
-    function apply() {
-      const q = input.value.trim().toLowerCase();
-      const rows = document.querySelectorAll('#itemsTable tbody tr');
-      const tiles = document.querySelectorAll('.item-tile');
-      let visibleRows = 0, visibleTiles = 0;
-      rows.forEach(r => { const hit = !q || (r.getAttribute('data-search')||'').includes(q); r.style.display = hit ? '' : 'none'; if (hit) visibleRows++; });
-      tiles.forEach(r => { const hit = !q || (r.getAttribute('data-search')||'').includes(q); r.style.display = hit ? '' : 'none'; if (hit) visibleTiles++; });
-      const total = rows.length || tiles.length;
-      const shown = rows.length ? visibleRows : visibleTiles;
-      if (q) {
-        count.textContent = `${shown} of ${total}`;
-        count.style.color = shown === 0 ? 'var(--warning)' : 'var(--text-subtle)';
-        clearBtn.style.display = 'grid';
-      } else {
-        count.textContent = '';
-        count.style.color = 'var(--text-subtle)';
-        clearBtn.style.display = 'none';
-      }
-    }
-    input.addEventListener('input', apply);
-    clearBtn.addEventListener('click', () => { input.value = ''; apply(); input.focus(); });
-    input.addEventListener('keydown', e => { if (e.key === 'Escape') { input.value = ''; apply(); } });
-    apply();
-  })();
-
-  // View switcher (persisted)
-  (function () {
-    const container = document.getElementById('viewContainer');
-    const buttons = document.querySelectorAll('.view-btn');
-    const KEY = 'invsys:view';
-    const saved = localStorage.getItem(KEY) || 'details';
-
-    function setView(v) {
-      container.dataset.view = v;
-      localStorage.setItem(KEY, v);
-      buttons.forEach(b => b.classList.toggle('active', b.dataset.view === v));
-      // Swap which block is visible
-      const details = container.querySelector('.view-details');
-      const grid = container.querySelector('.view-grid');
-      if (details) details.style.display = (v === 'details') ? '' : 'none';
-      if (grid) {
-        grid.style.display = (v === 'details') ? 'none' : '';
-        grid.className = 'view-grid grid-' + v;
-      }
-    }
-
-    buttons.forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
-    setView(saved);
-  })();
-</script>
 
 {% endblock %}

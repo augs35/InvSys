@@ -4,7 +4,7 @@
   <h2>Add item</h2>
   <form method="POST">
     <label>Name</label>
-    <input name="name" required autofocus>
+    <input name="name" required placeholder="e.g. Pencil" autofocus>
 
     <label>Description</label>
     <textarea name="description" rows="3" placeholder="Optional notes"></textarea>
@@ -14,15 +14,15 @@
 
     <label>Folder</label>
     <select name="folder_id">
-      <option value="">— Uncategorized —</option>
-      {% for f in folders %}
-        <option value="{{ f.id }}">{{ f.name }}</option>
+      <option value="">— No folder (root) —</option>
+      {% for f in all_folders %}
+        <option value="{{ f.id }}" {% if preselected_folder == f.id %}selected{% endif %}>{{ f.name }}</option>
       {% endfor %}
     </select>
 
     <div class="form-actions">
       <button class="btn btn-primary" type="submit">Save</button>
-      <a class="btn" href="{{ url_for('index') }}">Cancel</a>
+      <a class="btn" href="{% if preselected_folder %}{{ url_for('folder_view', folder_id=preselected_folder) }}{% else %}{{ url_for('folders_root') }}{% endif %}">Cancel</a>
     </div>
   </form>
 </div>

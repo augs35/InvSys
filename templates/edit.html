@@ -14,8 +14,8 @@
 
     <label>Folder</label>
     <select name="folder_id">
-      <option value="">— Uncategorized —</option>
-      {% for f in folders %}
+      <option value="">— No folder (root) —</option>
+      {% for f in all_folders %}
         <option value="{{ f.id }}" {% if item.folder_id == f.id %}selected{% endif %}>{{ f.name }}</option>
       {% endfor %}
     </select>

@@ -1,65 +1,213 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="card">
-  <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px;">
-    <h2 style="margin: 0;">📁 Folders</h2>
-    <form method="POST" action="{{ url_for('folder_new') }}" style="display: flex; gap: 8px; align-items: center;">
-      <input name="name" required placeholder="New folder name" style="height: 34px; width: 220px;">
-      <button class="btn btn-primary btn-sm" type="submit">+ Create</button>
-    </form>
-  </div>
+<!-- Breadcrumb -->
+<div class="breadcrumb">
+  <a href="{{ url_for('folders_root') }}">Home</a>
+  {% for crumb in breadcrumb %}
+    <span class="crumb-sep">›</span>
+    {% if loop.last %}
+      <span class="crumb-current">{{ crumb.name }}</span>
+    {% else %}
+      <a href="{{ url_for('folder_view', folder_id=crumb.id) }}">{{ crumb.name }}</a>
+    {% endif %}
+  {% endfor %}
+</div>
 
-  {% if folders %}
-  <div class="grid grid-md">
-    {% for f in folders %}
-    <div class="tile folder-tile">
-      <div class="tile-icon">📁</div>
-      <div class="tile-body">
-        <a class="tile-name" href="{{ url_for('folder_view', folder_id=f.id) }}">{{ f.name }}</a>
-        <div class="tile-meta">{{ f.item_count }} items · {{ f.total_qty }} in stock</div>
-      </div>
-      <div class="tile-actions">
-        <button class="btn btn-sm" type="button" onclick="document.getElementById('rename-{{ f.id }}').showModal()">Rename</button>
-        <form method="POST" action="{{ url_for('folder_delete', folder_id=f.id) }}" onsubmit="return confirm('Delete this folder? Items will move to Uncategorized.');">
-          <button class="btn btn-sm btn-danger" type="submit">Delete</button>
-        </form>
-      </div>
+<!-- Toolbar -->
+<div class="toolbar">
+  <button type="button" class="btn btn-primary" onclick="document.getElementById('folderDialog').showModal()">
+    + New folder
+  </button>
+  <a class="btn" href="{{ url_for('add_item') }}{% if current_folder %}?folder_id={{ current_folder.id }}{% endif %}">
+    + Add item
+  </a>
+
+  <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+    <!-- View mode switcher -->
+    <div class="view-switcher">
+      <button type="button" data-view="details" title="Details">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line>
+          <line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>
+        </svg>
+      </button>
+      <button type="button" data-view="content" title="Content">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <rect x="3" y="3" width="7" height="7" rx="1"></rect><line x1="14" y1="6" x2="21" y2="6"></line>
+          <rect x="3" y="14" width="7" height="7" rx="1"></rect><line x1="14" y1="17" x2="21" y2="17"></line>
+        </svg>
+      </button>
+      <button type="button" data-view="small" title="Small icons">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect>
+          <rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect>
+        </svg>
+      </button>
+      <button type="button" data-view="medium" title="Medium icons">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect>
+          <rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect>
+        </svg>
+      </button>
+      <button type="button" data-view="large" title="Large icons">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="8" height="8" rx="1"></rect><rect x="13" y="3" width="8" height="8" rx="1"></rect>
+          <rect x="3" y="13" width="8" height="8" rx="1"></rect><rect x="13" y="13" width="8" height="8" rx="1"></rect>
+        </svg>
+      </button>
+      <button type="button" data-view="xlarge" title="Extra large icons">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+        </svg>
+      </button>
     </div>
 
-    <dialog id="rename-{{ f.id }}" class="dialog">
-      <form method="POST" action="{{ url_for('folder_rename', folder_id=f.id) }}">
-        <h3>Rename folder</h3>
-        <input name="name" value="{{ f.name }}" required>
-        <div class="dialog-actions">
-          <button class="btn" type="button" onclick="this.closest('dialog').close()">Cancel</button>
-          <button class="btn btn-primary" type="submit">Save</button>
-        </div>
-      </form>
-    </dialog>
-    {% endfor %}
+    <a class="btn btn-sm" href="{{ url_for('download_db') }}">⬇ Backup</a>
   </div>
-  {% else %}
-  <div class="empty">
-    <div class="empty-icon">📂</div>
-    <h3>No folders yet</h3>
-    <p>Create your first folder above.</p>
-  </div>
-  {% endif %}
 </div>
 
-{% if uncategorized %}
-<div class="card">
-  <h3>Uncategorized</h3>
-  <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px;">
-    {% for it in uncategorized %}
-    <li style="padding: 8px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;">
-      <a href="{{ url_for('view_item', item_id=it.id) }}" style="color: var(--text); text-decoration: none; font-weight: 500;">{{ it.name }}</a>
-      <span style="color: var(--text-subtle); font-size: 12px; margin-left: 8px;">{{ it.quantity }}</span>
-    </li>
-    {% endfor %}
-  </ul>
+<!-- Folders -->
+{% if folders %}
+<div class="folders-grid" data-view-grid>
+  {% for f in folders %}
+  <a href="{{ url_for('folder_view', folder_id=f.id) }}" class="folder-tile">
+    <div class="folder-icon">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z"/>
+      </svg>
+    </div>
+    <div class="folder-name">{{ f.name }}</div>
+    <div class="folder-meta">
+      {{ f.item_count }} item{{ '' if f.item_count == 1 else 's' }}
+      {% if f.subfolder_count %} · {{ f.subfolder_count }} folder{{ '' if f.subfolder_count == 1 else 's' }}{% endif %}
+    </div>
+    <div class="folder-actions">
+      <button type="button" class="folder-action" title="Rename"
+              onclick="event.preventDefault(); event.stopPropagation(); document.getElementById('renameFolderId').value='{{ f.id }}'; document.getElementById('renameFolderName').value='{{ f.name|e }}'; document.getElementById('renameDialog').showModal();">
+        ✏️
+      </button>
+      <form method="POST" action="{{ url_for('delete_folder', folder_id=f.id) }}" style="display:inline"
+            onsubmit="event.preventDefault(); event.stopPropagation(); if (confirm('Delete folder \'{{ f.name|e }}\'? Items inside will be moved to unfiled.')) this.submit();">
+        <button type="submit" class="folder-action" title="Delete">🗑</button>
+      </form>
+    </div>
+  </a>
+  {% endfor %}
 </div>
 {% endif %}
+
+<!-- Items -->
+{% if items %}
+<div class="items-container" data-items-view>
+  {% for it in items %}
+  <div class="item-tile" data-search="{{ (it.name ~ ' ' ~ (it.description or '')) | lower }}">
+    <div class="item-tile-icon">
+      {% if it.quantity == 0 %}
+        <span class="item-tile-dot" style="background: var(--warning);"></span>
+      {% else %}
+        <span class="item-tile-dot" style="background: var(--success);"></span>
+      {% endif %}
+    </div>
+    <div class="item-tile-body">
+      <a href="{{ url_for('view_item', item_id=it.id) }}" class="item-tile-name">{{ it.name }}</a>
+      <div class="item-tile-meta">
+        <span>{{ it.quantity }} in stock</span>
+        {% if it.description %}<span>· {{ it.description|truncate(40, true, '…') }}</span>{% endif %}
+      </div>
+    </div>
+    <div class="item-tile-actions">
+      <a class="btn btn-sm" href="{{ url_for('view_item', item_id=it.id) }}">View</a>
+      <a class="btn btn-sm" href="{{ url_for('edit_item', item_id=it.id) }}">Edit</a>
+      <form method="POST" action="{{ url_for('delete_item', item_id=it.id) }}" style="display:inline"
+            onsubmit="return confirm('Delete {{ it.name|e }}?');">
+        <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if not folders and not items %}
+<div class="card">
+  <div class="empty">
+    <div class="empty-icon">📭</div>
+    <h3>{% if current_folder %}This folder is empty{% else %}No items or folders yet{% endif %}</h3>
+    <p>Create a folder or add an item to get started.</p>
+  </div>
+</div>
+{% endif %}
+
+<!-- New folder dialog -->
+<dialog id="folderDialog" class="app-dialog">
+  <form method="POST" action="{{ url_for('create_folder') }}">
+    <h2>New folder</h2>
+    <label>Folder name</label>
+    <input name="name" required autofocus placeholder="e.g. School supplies">
+    {% if current_folder %}
+      <input type="hidden" name="parent_id" value="{{ current_folder.id }}">
+    {% endif %}
+    <div class="dialog-actions">
+      <button type="button" class="btn" onclick="document.getElementById('folderDialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Create folder</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Rename folder dialog -->
+<dialog id="renameDialog" class="app-dialog">
+  <form method="POST" id="renameForm" action="">
+    <h2>Rename folder</h2>
+    <label>Folder name</label>
+    <input name="name" id="renameFolderName" required>
+    <input type="hidden" id="renameFolderId" value="">
+    <div class="dialog-actions">
+      <button type="button" class="btn" onclick="document.getElementById('renameDialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Rename</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  // Attach the folder ID to the rename form's action
+  document.getElementById('renameDialog').addEventListener('show', () => {});
+
+  // View mode persistence + application
+  (function () {
+    const grid = document.querySelector('[data-view-grid]');
+    const items = document.querySelector('[data-items-view]');
+    const container = grid || items;
+    const buttons = document.querySelectorAll('.view-switcher button');
+
+    let saved = localStorage.getItem('invsys:view') || 'details';
+
+    function apply(mode) {
+      document.body.dataset.view = mode;
+      // Update switcher highlight
+      buttons.forEach(b => b.classList.toggle('active', b.dataset.view === mode));
+      // Update URL query so a copied link respects the view
+      const url = new URL(window.location);
+      if (mode === 'details') url.searchParams.delete('view');
+      else url.searchParams.set('view', mode);
+      history.replaceState({}, '', url);
+      localStorage.setItem('invsys:view', mode);
+    }
+
+    buttons.forEach(b => {
+      b.addEventListener('click', () => apply(b.dataset.view));
+    });
+
+    apply(saved);
+  })();
+
+  // Rename form action fixup
+  document.getElementById('renameDialog').addEventListener('close', () => {
+    const id = document.getElementById('renameFolderId').value;
+    if (id) {
+      document.getElementById('renameForm').action = '/folder/' + id + '/rename';
+    }
+  });
+</script>
 
 {% endblock %}
