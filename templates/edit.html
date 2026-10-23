@@ -12,6 +12,14 @@
     <label>Quantity</label>
     <input name="quantity" type="number" value="{{ item.quantity }}" min="0">
 
+    <label>Folder</label>
+    <select name="folder_id">
+      <option value="">— Uncategorized —</option>
+      {% for f in folders %}
+        <option value="{{ f.id }}" {% if item.folder_id == f.id %}selected{% endif %}>{{ f.name }}</option>
+      {% endfor %}
+    </select>
+
     <div class="form-actions">
       <button class="btn btn-primary" type="submit">Save changes</button>
       <a class="btn" href="{{ url_for('view_item', item_id=item.id) }}">Cancel</a>

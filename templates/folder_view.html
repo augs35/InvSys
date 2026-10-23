@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="toolbar">
+  <a class="btn" href="{{ url_for('folders_list') }}">← Back to folders</a>
+  <h2 style="margin: 0 0 0 12px;">📁 {{ folder.name }}</h2>
+</div>
+
+<div class="card" style="padding: 0; overflow: hidden;">
+  {% if items %}
+  <table>
+    <thead>
+      <tr>
+        <th style="width:60px">#</th>
+        <th>Name</th>
+        <th style="width:110px">In stock</th>
+        <th style="width:140px">Status</th>
+        <th style="width:220px"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td style="color:var(--text-subtle); font-variant-numeric:tabular-nums;">{{ it.id }}</td>
+        <td><a href="{{ url_for('view_item', item_id=it.id) }}">{{ it.name }}</a></td>
+        <td>{{ it.quantity }}</td>
+        <td>
+          {% if it.quantity == 0 %}
+            <span class="badge badge-borrowed">Out of stock</span>
+          {% else %}
+            <span class="badge badge-available">Available</span>
+          {% endif %}
+        </td>
+        <td>
+          <div style="display:flex; gap:6px; justify-content:flex-end">
+            <a class="btn btn-sm" href="{{ url_for('view_item', item_id=it.id) }}">View</a>
+            <form method="POST" action="{{ url_for('item_move', item_id=it.id) }}">
+              <input type="hidden" name="folder_id" value="">
+              <button class="btn btn-sm" type="submit">Remove from folder</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon">📁</div>
+    <h3>No items in this folder</h3>
+    <p>Assign items to this folder from the item edit page.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

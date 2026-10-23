@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="card">
+  <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px;">
+    <h2 style="margin: 0;">📁 Folders</h2>
+    <form method="POST" action="{{ url_for('folder_new') }}" style="display: flex; gap: 8px; align-items: center;">
+      <input name="name" required placeholder="New folder name" style="height: 34px; width: 220px;">
+      <button class="btn btn-primary btn-sm" type="submit">+ Create</button>
+    </form>
+  </div>
+
+  {% if folders %}
+  <div class="grid grid-md">
+    {% for f in folders %}
+    <div class="tile folder-tile">
+      <div class="tile-icon">📁</div>
+      <div class="tile-body">
+        <a class="tile-name" href="{{ url_for('folder_view', folder_id=f.id) }}">{{ f.name }}</a>
+        <div class="tile-meta">{{ f.item_count }} items · {{ f.total_qty }} in stock</div>
+      </div>
+      <div class="tile-actions">
+        <button class="btn btn-sm" type="button" onclick="document.getElementById('rename-{{ f.id }}').showModal()">Rename</button>
+        <form method="POST" action="{{ url_for('folder_delete', folder_id=f.id) }}" onsubmit="return confirm('Delete this folder? Items will move to Uncategorized.');">
+          <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+        </form>
+      </div>
+    </div>
+
+    <dialog id="rename-{{ f.id }}" class="dialog">
+      <form method="POST" action="{{ url_for('folder_rename', folder_id=f.id) }}">
+        <h3>Rename folder</h3>
+        <input name="name" value="{{ f.name }}" required>
+        <div class="dialog-actions">
+          <button class="btn" type="button" onclick="this.closest('dialog').close()">Cancel</button>
+          <button class="btn btn-primary" type="submit">Save</button>
+        </div>
+      </form>
+    </dialog>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon">📂</div>
+    <h3>No folders yet</h3>
+    <p>Create your first folder above.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% if uncategorized %}
+<div class="card">
+  <h3>Uncategorized</h3>
+  <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px;">
+    {% for it in uncategorized %}
+    <li style="padding: 8px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;">
+      <a href="{{ url_for('view_item', item_id=it.id) }}" style="color: var(--text); text-decoration: none; font-weight: 500;">{{ it.name }}</a>
+      <span style="color: var(--text-subtle); font-size: 12px; margin-left: 8px;">{{ it.quantity }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% endblock %}

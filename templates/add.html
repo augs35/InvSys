@@ -4,13 +4,21 @@
   <h2>Add item</h2>
   <form method="POST">
     <label>Name</label>
-    <input name="name" required placeholder="" autofocus>
+    <input name="name" required autofocus>
 
     <label>Description</label>
     <textarea name="description" rows="3" placeholder="Optional notes"></textarea>
 
     <label>Quantity</label>
     <input name="quantity" type="number" value="1" min="0">
+
+    <label>Folder</label>
+    <select name="folder_id">
+      <option value="">— Uncategorized —</option>
+      {% for f in folders %}
+        <option value="{{ f.id }}">{{ f.name }}</option>
+      {% endfor %}
+    </select>
 
     <div class="form-actions">
       <button class="btn btn-primary" type="submit">Save</button>

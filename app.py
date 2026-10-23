@@ -108,6 +108,56 @@ def init_db():
             description TEXT,
             quantity INTEGER DEFAULT 1,
             location TEXT,
+            status TEXT DEFAULT 'available',
+            folder_id INTEGER
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_id INTEGER NOT NULL,
+            borrower TEXT,
+            action TEXT NOT NULL,
+            qty INTEGER DEFAULT 1,
+            timestamp TEXT NOT NULL,
+            FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS folders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
+
+    # Migrations
+    item_cols = [r[1] for r in conn.execute("PRAGMA table_info(items)").fetchall()]
+    if "status" not in item_cols:
+        conn.execute("ALTER TABLE items ADD COLUMN status TEXT DEFAULT 'available'")
+        print("[DB] Added column items.status")
+    if "folder_id" not in item_cols:
+        conn.execute("ALTER TABLE items ADD COLUMN folder_id INTEGER")
+        print("[DB] Added column items.folder_id")
+
+    log_cols = [r[1] for r in conn.execute("PRAGMA table_info(logs)").fetchall()]
+    if "qty" not in log_cols:
+        conn.execute("ALTER TABLE logs ADD COLUMN qty INTEGER DEFAULT 1")
+        print("[DB] Added column logs.qty")
+
+    conn.commit()
+    conn.close()
+    conn = sqlite3.connect(DB_PATH)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT,
+            quantity INTEGER DEFAULT 1,
+            location TEXT,
             status TEXT DEFAULT 'available'
         )
     """)
@@ -177,12 +227,42 @@ def delete_qr(item_id):
 @app.route("/")
 def index():
     db = get_db()
-    items = db.execute("SELECT * FROM items ORDER BY id DESC").fetchall()
-    return render_template("index.html", items=items)
+    items = db.execute("""
+        SELECT i.*, f.name AS folder_name
+        FROM items i LEFT JOIN folders f ON f.id = i.folder_id
+        ORDER BY i.id DESC
+    """).fetchall()
+    folders = db.execute("""
+        SELECT f.*, (SELECT COUNT(*) FROM items i WHERE i.folder_id = f.id) AS item_count
+        FROM folders f ORDER BY f.name COLLATE NOCASE
+    """).fetchall()
+    return render_template("index.html", items=items, folders=folders)
 
 
 @app.route("/add", methods=["GET", "POST"])
 def add_item():
+    db = get_db()
+    folders = db.execute("SELECT * FROM folders ORDER BY name COLLATE NOCASE").fetchall()
+
+    if request.method == "POST":
+        name = request.form["name"].strip()
+        description = request.form.get("description", "").strip()
+        quantity = int(request.form.get("quantity", 1))
+        folder_id_raw = request.form.get("folder_id", "").strip()
+        folder_id = int(folder_id_raw) if folder_id_raw.isdigit() else None
+
+        cur = db.execute(
+            "INSERT INTO items (name, description, quantity, folder_id) VALUES (?, ?, ?, ?)",
+            (name, description, quantity, folder_id),
+        )
+        db.commit()
+        item_id = cur.lastrowid
+
+        generate_qr(item_id)
+        flash(f"Added '{name}' and generated its QR code!", "success")
+        return redirect(url_for("index"))
+
+    return render_template("add.html", folders=folders)
     if request.method == "POST":
         name = request.form["name"].strip()
         description = request.form.get("description", "").strip()
@@ -206,7 +286,11 @@ def add_item():
 @app.route("/item/<int:item_id>")
 def view_item(item_id):
     db = get_db()
-    item = db.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+    item = db.execute("""
+        SELECT i.*, f.name AS folder_name
+        FROM items i LEFT JOIN folders f ON f.id = i.folder_id
+        WHERE i.id = ?
+    """, (item_id,)).fetchone()
     if not item:
         flash("Item not found.", "error")
         return redirect(url_for("index"))
@@ -218,9 +302,135 @@ def view_item(item_id):
     outstanding = get_outstanding(db, item_id)
     return render_template("item.html", item=item, logs=logs, outstanding=outstanding)
 
+# ============================================================
+# FOLDERS
+# ============================================================
+@app.route("/folders")
+def folders_list():
+    db = get_db()
+    folders = db.execute("""
+        SELECT f.*,
+               (SELECT COUNT(*) FROM items i WHERE i.folder_id = f.id) AS item_count,
+               (SELECT COALESCE(SUM(quantity),0) FROM items i WHERE i.folder_id = f.id) AS total_qty
+        FROM folders f ORDER BY f.name COLLATE NOCASE
+    """).fetchall()
+    # Items with no folder
+    uncategorized = db.execute(
+        "SELECT * FROM items WHERE folder_id IS NULL ORDER BY name COLLATE NOCASE"
+    ).fetchall()
+    return render_template("folders.html", folders=folders, uncategorized=uncategorized)
+
+
+@app.route("/folders/new", methods=["POST"])
+def folder_new():
+    name = request.form.get("name", "").strip()
+    if not name:
+        flash("Folder name can't be empty.", "error")
+        return redirect(url_for("folders_list"))
+    db = get_db()
+    db.execute(
+        "INSERT INTO folders (name, created_at) VALUES (?, ?)",
+        (name, datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")),
+    )
+    db.commit()
+    flash(f"Folder '{name}' created.", "success")
+    return redirect(url_for("folders_list"))
+
+
+@app.route("/folders/<int:folder_id>")
+def folder_view(folder_id):
+    db = get_db()
+    folder = db.execute("SELECT * FROM folders WHERE id = ?", (folder_id,)).fetchone()
+    if not folder:
+        flash("Folder not found.", "error")
+        return redirect(url_for("folders_list"))
+    items = db.execute(
+        "SELECT * FROM items WHERE folder_id = ? ORDER BY name COLLATE NOCASE",
+        (folder_id,),
+    ).fetchall()
+    return render_template("folder_view.html", folder=folder, items=items)
+
+
+@app.route("/folders/<int:folder_id>/rename", methods=["POST"])
+def folder_rename(folder_id):
+    db = get_db()
+    folder = db.execute("SELECT * FROM folders WHERE id = ?", (folder_id,)).fetchone()
+    if not folder:
+        flash("Folder not found.", "error")
+        return redirect(url_for("folders_list"))
+    name = request.form.get("name", "").strip()
+    if name:
+        db.execute("UPDATE folders SET name = ? WHERE id = ?", (name, folder_id))
+        db.commit()
+        flash(f"Folder renamed to '{name}'.", "success")
+    return redirect(url_for("folders_list"))
+
+
+@app.route("/folders/<int:folder_id>/delete", methods=["POST"])
+def folder_delete(folder_id):
+    db = get_db()
+    folder = db.execute("SELECT * FROM folders WHERE id = ?", (folder_id,)).fetchone()
+    if folder:
+        # Unlink items but don't delete them
+        db.execute("UPDATE items SET folder_id = NULL WHERE folder_id = ?", (folder_id,))
+        db.execute("DELETE FROM folders WHERE id = ?", (folder_id,))
+        db.commit()
+        flash(f"Folder '{folder['name']}' deleted. Items were moved to Uncategorized.", "success")
+    return redirect(url_for("folders_list"))
+
+
+@app.route("/items/<int:item_id>/move", methods=["POST"])
+def item_move(item_id):
+    """Assign (or unassign) an item to a folder."""
+    db = get_db()
+    item = db.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+    if not item:
+        flash("Item not found.", "error")
+        return redirect(url_for("index"))
+
+    folder_id_raw = request.form.get("folder_id", "").strip()
+    folder_id = int(folder_id_raw) if folder_id_raw.isdigit() else None
+
+    if folder_id:
+        folder = db.execute("SELECT * FROM folders WHERE id = ?", (folder_id,)).fetchone()
+        if not folder:
+            flash("Folder not found.", "error")
+            return redirect(request.referrer or url_for("index"))
+
+    db.execute("UPDATE items SET folder_id = ? WHERE id = ?", (folder_id, item_id))
+    db.commit()
+
+    flash(f"'{item['name']}' moved.", "success")
+    return redirect(request.referrer or url_for("index"))
+
 
 @app.route("/edit/<int:item_id>", methods=["GET", "POST"])
 def edit_item(item_id):
+    db = get_db()
+    item = db.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+    if not item:
+        flash("Item not found.", "error")
+        return redirect(url_for("index"))
+
+    folders = db.execute("SELECT * FROM folders ORDER BY name COLLATE NOCASE").fetchall()
+
+    if request.method == "POST":
+        name = request.form["name"].strip()
+        description = request.form.get("description", "").strip()
+        quantity = int(request.form.get("quantity", 1))
+        new_status = "borrowed" if quantity == 0 else "available"
+        folder_id_raw = request.form.get("folder_id", "").strip()
+        folder_id = int(folder_id_raw) if folder_id_raw.isdigit() else None
+
+        db.execute(
+            "UPDATE items SET name=?, description=?, quantity=?, status=?, folder_id=? WHERE id=?",
+            (name, description, quantity, new_status, folder_id, item_id),
+        )
+        db.commit()
+        flash(f"Updated '{name}'.", "success")
+        return redirect(url_for("view_item", item_id=item_id))
+
+    return render_template("edit.html", item=item, folders=folders)
     db = get_db()
     item = db.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
     if not item:
