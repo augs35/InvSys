@@ -54,9 +54,23 @@
   }
 </script>
 
+<div class="toolbar" style="margin-bottom: 8px;">
+  <div class="search-wrap" style="flex: 1; max-width: 420px;">
+    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"></circle>
+      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+    </svg>
+    <input type="text" id="searchInput" class="search-input"
+           placeholder="Search items by name or description…"
+           autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button type="button" id="searchClear" class="search-clear" aria-label="Clear search" style="display:none;">✕</button>
+  </div>
+  <span id="searchCount" style="font-size: 12.5px; color: var(--text-subtle); align-self: center;"></span>
+</div>
+
 <div class="card" style="padding: 0; overflow: hidden;">
   {% if items %}
-  <table>
+  <table id="itemsTable">
     <thead>
       <tr>
         <th style="width:60px">#</th>
@@ -68,7 +82,7 @@
     </thead>
     <tbody>
       {% for it in items %}
-      <tr>
+      <tr data-search="{{ (it.name ~ ' ' ~ (it.description or '')) | lower }}">
         <td data-label="#" style="color:var(--text-subtle); font-variant-numeric:tabular-nums;">{{ it.id }}</td>
         <td data-label="Name"><a href="{{ url_for('view_item', item_id=it.id) }}">{{ it.name }}</a></td>
         <td data-label="In stock">
@@ -97,6 +111,51 @@
       {% endfor %}
     </tbody>
   </table>
+  <script>
+    (function () {
+      const input = document.getElementById('searchInput');
+      const clearBtn = document.getElementById('searchClear');
+      const count = document.getElementById('searchCount');
+      const table = document.getElementById('itemsTable');
+      if (!input || !table) return;
+      const rows = Array.from(table.querySelectorAll('tbody tr'));
+
+      function apply() {
+        const q = input.value.trim().toLowerCase();
+        let visible = 0;
+        rows.forEach(r => {
+          const hay = r.getAttribute('data-search') || '';
+          const match = !q || hay.includes(q);
+          r.style.display = match ? '' : 'none';
+          if (match) visible++;
+        });
+        // Count indicator
+        if (q) {
+          count.textContent = `${visible} of ${rows.length}`;
+          count.style.color = visible === 0 ? 'var(--warning)' : 'var(--text-subtle)';
+        } else {
+          count.textContent = '';
+          count.style.color = 'var(--text-subtle)';
+        }
+        // Show clear button only when there's text
+        clearBtn.style.display = q ? 'grid' : 'none';
+      }
+
+      input.addEventListener('input', apply);
+      clearBtn.addEventListener('click', () => {
+        input.value = '';
+        apply();
+        input.focus();
+      });
+      // Escape clears
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { input.value = ''; apply(); }
+      });
+
+      apply();
+    })();
+  </script>
+
   {% else %}
   <div class="empty">
     <div class="empty-icon">—</div>

@@ -2,7 +2,7 @@ import os
 import sqlite3
 import qrcode
 from flask import Flask, render_template, request, redirect, url_for, send_file, flash, g, jsonify
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 app = Flask(__name__)
 app.secret_key = "change-this-secret-key"
@@ -31,7 +31,36 @@ os.makedirs(QR_FOLDER, exist_ok=True)
 # ============================================================
 # HELPERS
 # ============================================================
+# Philippine Standard Time = UTC+8 (no daylight savings, so a fixed offset is fine)
+MANILA_TZ = timezone(timedelta(hours=8))
+
+
 def pretty_time(sqlite_ts):
+    """Convert a stored UTC 'YYYY-MM-DD HH:MM:SS' string into 'October 18, 2026 3:45PM' (Manila time)."""
+    if not sqlite_ts:
+        return ""
+    try:
+        # Parse as UTC
+        dt_utc = datetime.strptime(sqlite_ts, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+    except ValueError:
+        # Legacy values that might not have seconds — try a couple more patterns
+        for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
+            try:
+                dt_utc = datetime.strptime(sqlite_ts, fmt).replace(tzinfo=timezone.utc)
+                break
+            except ValueError:
+                continue
+        else:
+            return sqlite_ts
+
+    dt = dt_utc.astimezone(MANILA_TZ)
+    month_name = dt.strftime("%B")
+    day = dt.day
+    year = dt.year
+    hour12 = dt.hour % 12 or 12
+    minute = f"{dt.minute:02d}"
+    ampm = "AM" if dt.hour < 12 else "PM"
+    return f"{month_name} {day}, {year} {hour12}:{minute}{ampm}"
     """Convert '2026-11-01 22:33:00' -> 'November 1, 2026 10:33PM'."""
     if not sqlite_ts:
         return ""
@@ -258,7 +287,7 @@ def borrow_item(item_id):
             flash(f"Only {item['quantity']} in stock.", "error")
             return redirect(url_for("borrow_item", item_id=item_id))
 
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         new_qty = item["quantity"] - qty
         new_status = "borrowed" if new_qty == 0 else "available"
 
@@ -305,7 +334,7 @@ def return_item(item_id):
             flash(f"Only {outstanding} borrowed — can't return more than that.", "error")
             return redirect(url_for("return_item", item_id=item_id))
 
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
         last = db.execute(
             "SELECT borrower FROM logs WHERE item_id=? AND action='borrow' ORDER BY id DESC LIMIT 1",
@@ -439,7 +468,7 @@ def toggle_item(item_id):
     if not who or action not in ("borrow", "return"):
         return redirect(url_for("scan_confirm", item_id=item_id))
 
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     outstanding = get_outstanding(db, item_id)
 
     # ---- BORROW ----
@@ -502,7 +531,7 @@ def toggle_item(item_id):
     if not who:
         return redirect(url_for("scan_confirm", item_id=item_id))
 
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     outstanding = get_outstanding(db, item_id)
 
     if item["quantity"] > 0:
