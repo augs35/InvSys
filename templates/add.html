@@ -1,21 +1,39 @@
 {% extends "base.html" %}
+{% block title %}Add item{% endblock %}
+{% block section_name %}Add item{% endblock %}
 {% block content %}
-<div class="card" style="max-width: 560px;">
-  <h2>Add item</h2>
+<div class="page-heading">
+  <div>
+    <span class="eyebrow">Inventory setup</span>
+    <h1>Add an item</h1>
+    <p>Create a record and InvSys will generate its QR code.</p>
+  </div>
+</div>
+<section class="card form-card">
+  <div class="form-heading">
+    <h1>Item information</h1>
+    <p>Enter the details you want to keep with this inventory record.</p>
+  </div>
   <form method="POST">
-    <label>Name</label>
-    <input name="name" required placeholder="" autofocus>
-
-    <label>Description</label>
-    <textarea name="description" rows="3" placeholder="Optional notes"></textarea>
-
-    <label>Quantity</label>
-    <input name="quantity" type="number" value="1" min="0">
-
+    <div class="form-section-label">Details</div>
+    <div class="field">
+      <label for="name">Item name</label>
+      <input id="name" name="name" required placeholder="e.g. Camera tripod" autofocus>
+      <span class="field-hint">Choose a short, recognizable name.</span>
+    </div>
+    <div class="field">
+      <label for="description">Description <span style="color:var(--muted);font-weight:500;">(optional)</span></label>
+      <textarea id="description" name="description" rows="4" placeholder="Add identifying details or notes"></textarea>
+    </div>
+    <div class="field">
+      <label for="quantity">Starting quantity</label>
+      <input id="quantity" name="quantity" type="number" value="1" min="0" inputmode="numeric">
+      <span class="field-hint">Set the number of units currently in stock.</span>
+    </div>
     <div class="form-actions">
-      <button class="btn btn-primary" type="submit">Save</button>
+      <button class="btn btn-primary" type="submit">Save item</button>
       <a class="btn" href="{{ url_for('index') }}">Cancel</a>
     </div>
   </form>
-</div>
+</section>
 {% endblock %}

@@ -1,21 +1,38 @@
 {% extends "base.html" %}
+{% block title %}Edit {{ item.name }}{% endblock %}
+{% block section_name %}Edit item{% endblock %}
 {% block content %}
-<div class="card" style="max-width: 560px;">
-  <h2>Edit item</h2>
+<div class="page-heading">
+  <div>
+    <span class="eyebrow">Inventory record</span>
+    <h1>Edit item</h1>
+    <p>Update the saved details for {{ item.name }}.</p>
+  </div>
+</div>
+<section class="card form-card">
+  <div class="form-heading">
+    <h1>Item information</h1>
+    <p>Changes will be reflected across the inventory and item QR record.</p>
+  </div>
   <form method="POST">
-    <label>Name</label>
-    <input name="name" required value="{{ item.name }}">
-
-    <label>Description</label>
-    <textarea name="description" rows="3">{{ item.description }}</textarea>
-
-    <label>Quantity</label>
-    <input name="quantity" type="number" value="{{ item.quantity }}" min="0">
-
+    <input type="hidden" name="folder_id" value="{{ folder_id if folder_id else '' }}">
+    <div class="form-section-label">Details</div>
+    <div class="field">
+      <label for="name">Item name</label>
+      <input id="name" name="name" required value="{{ item.name }}" autofocus>
+    </div>
+    <div class="field">
+      <label for="description">Description</label>
+      <textarea id="description" name="description" rows="4" placeholder="Add identifying details or notes">{{ item.description }}</textarea>
+    </div>
+    <div class="field">
+      <label for="quantity">Quantity in stock</label>
+      <input id="quantity" name="quantity" type="number" value="{{ item.quantity }}" min="0" inputmode="numeric">
+    </div>
     <div class="form-actions">
       <button class="btn btn-primary" type="submit">Save changes</button>
-      <a class="btn" href="{{ url_for('view_item', item_id=item.id) }}">Cancel</a>
+      <a class="btn" href="{{ url_for('view_item', item_id=item.id, folder=folder_id) }}">Cancel</a>
     </div>
   </form>
-</div>
+</section>
 {% endblock %}

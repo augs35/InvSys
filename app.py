@@ -12,9 +12,12 @@ if not BASE_URL:
     if os.path.isdir("/data"):
         # On Render, BASE_URL MUST be set — otherwise QRs point to a LAN IP
         print("[warn] BASE_URL not set on Render. QRs will be broken. Set the env var!")
-        BASE_URL = "https://invsys-hlx3.onrender.com"  # placeholder, must be replaced
+        BASE_URL = "https://192.168.1.181:5000"  # placeholder, must be replaced
     else:
-        BASE_URL = "https://invsys-hlx3.onrender.com"
+        BASE_URL = "https://192.168.1.181:5000"
+        
+        # https://192.168.1.181:5000
+        # https://invsys-hlx3.onrender.com
 
 # On Render, a persistent disk is mounted at /data.
 # Locally, these fall back to the project folder.
@@ -124,16 +127,29 @@ def init_db():
         )
     """)
 
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS folders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            parent_id INTEGER REFERENCES folders(id)
+        )
+    """)
+
     item_cols = [r[1] for r in conn.execute("PRAGMA table_info(items)").fetchall()]
     if "status" not in item_cols:
         conn.execute("ALTER TABLE items ADD COLUMN status TEXT DEFAULT 'available'")
         print("[DB] Added column items.status")
+    if "folder_id" not in item_cols:
+        conn.execute("ALTER TABLE items ADD COLUMN folder_id INTEGER REFERENCES folders(id)")
+        print("[DB] Added column items.folder_id")
 
     log_cols = [r[1] for r in conn.execute("PRAGMA table_info(logs)").fetchall()]
     if "qty" not in log_cols:
         conn.execute("ALTER TABLE logs ADD COLUMN qty INTEGER DEFAULT 1")
         print("[DB] Added column logs.qty")
 
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_items_folder_id ON items(folder_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_folders_parent_id ON folders(parent_id)")
     conn.commit()
     conn.close()
 
@@ -145,6 +161,54 @@ def get_outstanding(db, item_id):
     ).fetchone()
     return max(row["out"], 0)
 
+
+def folder_index_redirect(folder_id=None):
+    if folder_id is None:
+        return redirect(url_for("index"))
+    return redirect(url_for("index", folder=folder_id))
+
+
+def resolve_folder_context(db, raw_folder_id):
+    if raw_folder_id in (None, ""):
+        return None
+    try:
+        folder_id = int(raw_folder_id)
+    except (TypeError, ValueError):
+        flash("The folder location is invalid.", "error")
+        return None
+    if not db.execute(
+        "SELECT 1 FROM folders WHERE id=?", (folder_id,)
+    ).fetchone():
+        flash("That folder location no longer exists.", "error")
+        return None
+    return folder_id
+
+
+def folder_name_exists(db, name, parent_id, exclude_id=None):
+    query = "SELECT 1 FROM folders WHERE LOWER(name)=LOWER(?) AND parent_id IS ?"
+    params = [name, parent_id]
+    if exclude_id is not None:
+        query += " AND id != ?"
+        params.append(exclude_id)
+    return db.execute(query, params).fetchone() is not None
+
+
+def folder_is_descendant(db, ancestor_id, folder_id):
+    seen = set()
+    current = db.execute(
+        "SELECT parent_id FROM folders WHERE id=?", (folder_id,)
+    ).fetchone()
+    while current and current["parent_id"] is not None:
+        parent_id = current["parent_id"]
+        if parent_id == ancestor_id:
+            return True
+        if parent_id in seen:
+            return True
+        seen.add(parent_id)
+        current = db.execute(
+            "SELECT parent_id FROM folders WHERE id=?", (parent_id,)
+        ).fetchone()
+    return False
 
 # ============================================================
 # QR HELPERS
@@ -177,8 +241,235 @@ def delete_qr(item_id):
 @app.route("/")
 def index():
     db = get_db()
-    items = db.execute("SELECT * FROM items ORDER BY id DESC").fetchall()
-    return render_template("index.html", items=items)
+    requested_folder = request.args.get("folder")
+    folder_id = None
+    current_folder = None
+    if requested_folder is not None:
+        try:
+            folder_id = int(requested_folder)
+        except ValueError:
+            flash("That folder is invalid.", "error")
+            return redirect(url_for("index"))
+        current_folder = db.execute(
+            "SELECT * FROM folders WHERE id=?", (folder_id,)
+        ).fetchone()
+        if not current_folder:
+            flash("That folder no longer exists.", "error")
+            return redirect(url_for("index"))
+
+    breadcrumbs = []
+    ancestor = current_folder
+    seen_ancestors = set()
+    while ancestor:
+        if ancestor["id"] in seen_ancestors:
+            break
+        seen_ancestors.add(ancestor["id"])
+        breadcrumbs.append(ancestor)
+        if ancestor["parent_id"] is None:
+            break
+        ancestor = db.execute(
+            "SELECT * FROM folders WHERE id=?", (ancestor["parent_id"],)
+        ).fetchone()
+    breadcrumbs.reverse()
+
+    folders = db.execute("""
+        SELECT f.*,
+               (SELECT COUNT(*) FROM items WHERE folder_id=f.id) AS item_count,
+               (SELECT COUNT(*) FROM folders AS child WHERE child.parent_id=f.id) AS folder_count
+        FROM folders AS f
+        WHERE f.parent_id IS ?
+        ORDER BY f.name COLLATE NOCASE, f.id
+    """, (folder_id,)).fetchall()
+    items = db.execute("""
+        SELECT i.*,
+               MAX(COALESCE((
+                   SELECT SUM(CASE WHEN action='borrow' THEN qty ELSE -qty END)
+                   FROM logs WHERE item_id=i.id
+               ), 0), 0) AS borrowed
+        FROM items i
+        WHERE i.folder_id IS ?
+        ORDER BY i.id ASC
+    """, (folder_id,)).fetchall()
+    return render_template(
+        "index.html",
+        items=items,
+        folders=folders,
+        current_folder=current_folder,
+        breadcrumbs=breadcrumbs,
+    )
+
+
+@app.route("/folders/create", methods=["POST"])
+def create_folder():
+    db = get_db()
+    name = request.form.get("name", "").strip()
+    raw_parent_id = request.form.get("parent_id", "")
+    try:
+        parent_id = int(raw_parent_id) if raw_parent_id else None
+    except ValueError:
+        flash("The parent folder is invalid.", "error")
+        return redirect(url_for("index"))
+
+    if parent_id is not None and not db.execute(
+        "SELECT 1 FROM folders WHERE id=?", (parent_id,)
+    ).fetchone():
+        flash("The parent folder no longer exists.", "error")
+        return redirect(url_for("index"))
+    if not name:
+        flash("Enter a folder name.", "error")
+        return folder_index_redirect(parent_id)
+    if folder_name_exists(db, name, parent_id):
+        flash("A folder with that name already exists here.", "error")
+        return folder_index_redirect(parent_id)
+
+    db.execute(
+        "INSERT INTO folders (name, parent_id) VALUES (?, ?)",
+        (name, parent_id),
+    )
+    db.commit()
+    flash(f"Created folder '{name}'.", "success")
+    return folder_index_redirect(parent_id)
+
+
+@app.route("/folders/rename", methods=["POST"])
+def rename_folder():
+    db = get_db()
+    raw_folder_id = request.form.get("folder_id", "")
+    name = request.form.get("name", "").strip()
+    try:
+        folder_id = int(raw_folder_id)
+    except ValueError:
+        flash("The folder is invalid.", "error")
+        return redirect(url_for("index"))
+
+    folder = db.execute(
+        "SELECT * FROM folders WHERE id=?", (folder_id,)
+    ).fetchone()
+    if not folder:
+        flash("That folder no longer exists.", "error")
+        return redirect(url_for("index"))
+    if not name:
+        flash("Enter a folder name.", "error")
+        return folder_index_redirect(folder["parent_id"])
+    if folder_name_exists(db, name, folder["parent_id"], folder_id):
+        flash("A folder with that name already exists here.", "error")
+        return folder_index_redirect(folder["parent_id"])
+
+    db.execute("UPDATE folders SET name=? WHERE id=?", (name, folder_id))
+    db.commit()
+    flash(f"Renamed folder to '{name}'.", "success")
+    return folder_index_redirect(folder["parent_id"])
+
+
+@app.route("/folders/<int:folder_id>/delete", methods=["POST"])
+def delete_folder(folder_id):
+    db = get_db()
+    folder = db.execute(
+        "SELECT * FROM folders WHERE id=?", (folder_id,)
+    ).fetchone()
+    if not folder:
+        flash("That folder no longer exists.", "error")
+        return redirect(url_for("index"))
+
+    folder_ids = [
+        row["id"] for row in db.execute("""
+            WITH RECURSIVE subtree(id) AS (
+                SELECT id FROM folders WHERE id=?
+                UNION
+                SELECT child.id
+                FROM folders AS child
+                JOIN subtree ON child.parent_id=subtree.id
+            )
+            SELECT id FROM subtree
+        """, (folder_id,)).fetchall()
+    ]
+    placeholders = ",".join("?" for _ in folder_ids)
+    item_ids = [
+        row["id"] for row in db.execute(
+            f"SELECT id FROM items WHERE folder_id IN ({placeholders})",
+            folder_ids,
+        ).fetchall()
+    ]
+    if item_ids:
+        item_placeholders = ",".join("?" for _ in item_ids)
+        db.execute(
+            f"DELETE FROM logs WHERE item_id IN ({item_placeholders})",
+            item_ids,
+        )
+        db.execute(
+            f"DELETE FROM items WHERE id IN ({item_placeholders})",
+            item_ids,
+        )
+    db.execute(
+        f"DELETE FROM folders WHERE id IN ({placeholders})",
+        folder_ids,
+    )
+    db.commit()
+    for item_id in item_ids:
+        delete_qr(item_id)
+
+    flash(f"Deleted folder '{folder['name']}' and its contents.", "success")
+    return folder_index_redirect(folder["parent_id"])
+
+
+@app.route("/items/<int:item_id>/move", methods=["POST"])
+def move_item(item_id):
+    db = get_db()
+    item = db.execute(
+        "SELECT id, folder_id FROM items WHERE id=?", (item_id,)
+    ).fetchone()
+    if not item:
+        return jsonify(error="That item no longer exists."), 404
+
+    raw_folder_id = request.form.get("folder_id", "")
+    try:
+        folder_id = int(raw_folder_id) if raw_folder_id else None
+    except ValueError:
+        return jsonify(error="The destination folder is invalid."), 400
+    if folder_id is not None and not db.execute(
+        "SELECT 1 FROM folders WHERE id=?", (folder_id,)
+    ).fetchone():
+        return jsonify(error="The destination folder no longer exists."), 404
+    if item["folder_id"] == folder_id:
+        return jsonify(error="That item is already in this location."), 400
+
+    db.execute("UPDATE items SET folder_id=? WHERE id=?", (folder_id, item_id))
+    db.commit()
+    return jsonify(message="Item moved.")
+
+
+@app.route("/folders/<int:folder_id>/move", methods=["POST"])
+def move_folder(folder_id):
+    db = get_db()
+    folder = db.execute(
+        "SELECT id, name, parent_id FROM folders WHERE id=?", (folder_id,)
+    ).fetchone()
+    if not folder:
+        return jsonify(error="That folder no longer exists."), 404
+
+    raw_parent_id = request.form.get("folder_id", "")
+    try:
+        parent_id = int(raw_parent_id) if raw_parent_id else None
+    except ValueError:
+        return jsonify(error="The destination folder is invalid."), 400
+    if parent_id is not None and not db.execute(
+        "SELECT 1 FROM folders WHERE id=?", (parent_id,)
+    ).fetchone():
+        return jsonify(error="The destination folder no longer exists."), 404
+    if parent_id == folder_id or (
+        parent_id is not None and folder_is_descendant(db, folder_id, parent_id)
+    ):
+        return jsonify(error="A folder cannot be moved inside itself."), 400
+    if folder["parent_id"] == parent_id:
+        return jsonify(error="That folder is already in this location."), 400
+    if folder_name_exists(db, folder["name"], parent_id, folder_id):
+        return jsonify(error="A folder with that name already exists there."), 409
+
+    db.execute(
+        "UPDATE folders SET parent_id=? WHERE id=?", (parent_id, folder_id)
+    )
+    db.commit()
+    return jsonify(message="Folder moved.")
 
 
 @app.route("/add", methods=["GET", "POST"])
@@ -216,7 +507,14 @@ def view_item(item_id):
     ).fetchall()
 
     outstanding = get_outstanding(db, item_id)
-    return render_template("item.html", item=item, logs=logs, outstanding=outstanding)
+    folder_id = resolve_folder_context(db, request.args.get("folder"))
+    return render_template(
+        "item.html",
+        item=item,
+        logs=logs,
+        outstanding=outstanding,
+        folder_id=folder_id,
+    )
 
 
 @app.route("/edit/<int:item_id>", methods=["GET", "POST"])
@@ -228,6 +526,7 @@ def edit_item(item_id):
         return redirect(url_for("index"))
 
     if request.method == "POST":
+        folder_id = resolve_folder_context(db, request.form.get("folder_id"))
         name = request.form["name"].strip()
         description = request.form.get("description", "").strip()
         quantity = int(request.form.get("quantity", 1))
@@ -239,14 +538,16 @@ def edit_item(item_id):
         )
         db.commit()
         flash(f"Updated '{name}'.", "success")
-        return redirect(url_for("view_item", item_id=item_id))
+        return redirect(url_for("view_item", item_id=item_id, folder=folder_id))
 
-    return render_template("edit.html", item=item)
+    folder_id = resolve_folder_context(db, request.args.get("folder"))
+    return render_template("edit.html", item=item, folder_id=folder_id)
 
 
 @app.route("/delete/<int:item_id>", methods=["POST"])
 def delete_item(item_id):
     db = get_db()
+    folder_id = resolve_folder_context(db, request.form.get("folder_id"))
     item = db.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
     if item:
         db.execute("DELETE FROM logs WHERE item_id = ?", (item_id,))
@@ -254,7 +555,7 @@ def delete_item(item_id):
         db.commit()
         delete_qr(item_id)
         flash(f"Deleted '{item['name']}'.", "success")
-    return redirect(url_for("index"))
+    return folder_index_redirect(folder_id)
 
 
 # ============================================================
@@ -263,6 +564,7 @@ def delete_item(item_id):
 @app.route("/borrow/<int:item_id>", methods=["GET", "POST"])
 def borrow_item(item_id):
     db = get_db()
+    folder_id = resolve_folder_context(db, request.values.get("folder"))
     item = db.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
     if not item:
         flash("Item not found.", "error")
@@ -270,7 +572,7 @@ def borrow_item(item_id):
 
     if item["quantity"] <= 0:
         flash(f"'{item['name']}' has no stock left to borrow.", "error")
-        return redirect(url_for("view_item", item_id=item_id))
+        return redirect(url_for("view_item", item_id=item_id, folder=folder_id))
 
     if request.method == "POST":
         borrower = request.form.get("borrower", "").strip() or "Unknown"
@@ -281,11 +583,11 @@ def borrow_item(item_id):
 
         if qty < 1:
             flash("Quantity must be at least 1.", "error")
-            return redirect(url_for("borrow_item", item_id=item_id))
+            return redirect(url_for("borrow_item", item_id=item_id, folder=folder_id))
 
         if qty > item["quantity"]:
             flash(f"Only {item['quantity']} in stock.", "error")
-            return redirect(url_for("borrow_item", item_id=item_id))
+            return redirect(url_for("borrow_item", item_id=item_id, folder=folder_id))
 
         now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         new_qty = item["quantity"] - qty
@@ -302,14 +604,15 @@ def borrow_item(item_id):
         db.commit()
 
         flash(f"{borrower} borrowed {qty} × {item['name']}. {new_qty} left.", "success")
-        return redirect(url_for("view_item", item_id=item_id))
+        return redirect(url_for("view_item", item_id=item_id, folder=folder_id))
 
-    return render_template("borrow.html", item=item)
+    return render_template("borrow.html", item=item, folder_id=folder_id)
 
 
 @app.route("/return/<int:item_id>", methods=["GET", "POST"])
 def return_item(item_id):
     db = get_db()
+    folder_id = resolve_folder_context(db, request.values.get("folder"))
     item = db.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
     if not item:
         flash("Item not found.", "error")
@@ -318,7 +621,7 @@ def return_item(item_id):
     outstanding = get_outstanding(db, item_id)
     if outstanding <= 0:
         flash(f"Nothing is currently borrowed for '{item['name']}'.", "error")
-        return redirect(url_for("view_item", item_id=item_id))
+        return redirect(url_for("view_item", item_id=item_id, folder=folder_id))
 
     if request.method == "POST":
         try:
@@ -328,11 +631,11 @@ def return_item(item_id):
 
         if qty < 1:
             flash("Quantity must be at least 1.", "error")
-            return redirect(url_for("return_item", item_id=item_id))
+            return redirect(url_for("return_item", item_id=item_id, folder=folder_id))
 
         if qty > outstanding:
             flash(f"Only {outstanding} borrowed — can't return more than that.", "error")
-            return redirect(url_for("return_item", item_id=item_id))
+            return redirect(url_for("return_item", item_id=item_id, folder=folder_id))
 
         now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -356,9 +659,11 @@ def return_item(item_id):
         db.commit()
 
         flash(f"Returned {qty} × {item['name']}. Stock is now {new_qty}.", "success")
-        return redirect(url_for("view_item", item_id=item_id))
+        return redirect(url_for("view_item", item_id=item_id, folder=folder_id))
 
-    return render_template("return.html", item=item, outstanding=outstanding)
+    return render_template(
+        "return.html", item=item, outstanding=outstanding, folder_id=folder_id
+    )
 
 
 # ============================================================
