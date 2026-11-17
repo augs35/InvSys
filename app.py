@@ -12,9 +12,9 @@ if not BASE_URL:
     if os.path.isdir("/data"):
         # On Render, BASE_URL MUST be set — otherwise QRs point to a LAN IP
         print("[warn] BASE_URL not set on Render. QRs will be broken. Set the env var!")
-        BASE_URL = "https://192.168.1.181:5000"  # placeholder, must be replaced
+        BASE_URL = "https://invsys-hlx3.onrender.com"  # placeholder, must be replaced
     else:
-        BASE_URL = "https://192.168.1.181:5000"
+        BASE_URL = "https://invsys-hlx3.onrender.com"
         
         # https://192.168.1.181:5000
         # https://invsys-hlx3.onrender.com
