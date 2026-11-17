@@ -15,24 +15,26 @@
     <p>Enter the details you want to keep with this inventory record.</p>
   </div>
   <form method="POST">
-    <div class="form-section-label">Details</div>
-    <div class="field">
-      <label for="name">Item name</label>
-      <input id="name" name="name" required placeholder="e.g. Camera tripod" autofocus>
-      <span class="field-hint">Choose a short, recognizable name.</span>
-    </div>
-    <div class="field">
-      <label for="description">Description <span style="color:var(--muted);font-weight:500;">(optional)</span></label>
-      <textarea id="description" name="description" rows="4" placeholder="Add identifying details or notes"></textarea>
-    </div>
-    <div class="field">
-      <label for="quantity">Starting quantity</label>
-      <input id="quantity" name="quantity" type="number" value="1" min="0" inputmode="numeric">
-      <span class="field-hint">Set the number of units currently in stock.</span>
-    </div>
+    <label>Name</label>
+    <input name="name" required placeholder="e.g. Pencil" autofocus>
+
+    <label>Description</label>
+    <textarea name="description" rows="3" placeholder="Optional notes"></textarea>
+
+    <label>Quantity</label>
+    <input name="quantity" type="number" value="1" min="0">
+
+    <label>Folder</label>
+    <select name="folder_id">
+      <option value="">— No folder (root) —</option>
+      {% for f in all_folders %}
+        <option value="{{ f.id }}" {% if preselected_folder == f.id %}selected{% endif %}>{{ f.name }}</option>
+      {% endfor %}
+    </select>
+
     <div class="form-actions">
-      <button class="btn btn-primary" type="submit">Save item</button>
-      <a class="btn" href="{{ url_for('index') }}">Cancel</a>
+      <button class="btn btn-primary" type="submit">Save</button>
+      <a class="btn" href="{% if preselected_folder %}{{ url_for('folder_view', folder_id=preselected_folder) }}{% else %}{{ url_for('folders_root') }}{% endif %}">Cancel</a>
     </div>
   </form>
 </section>
