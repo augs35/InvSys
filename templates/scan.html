@@ -1,26 +1,47 @@
 {% extends "base.html" %}
+{% block title %}QR scanner{% endblock %}
+{% block section_name %}QR scanner{% endblock %}
 {% block content %}
-<div class="card" style="text-align:center">
-  <h2>📷 Scan Item QR</h2>
-  <p style="color:var(--muted);margin-bottom:20px">
-    Point your camera at an item's QR code. It'll ask for your name, then record the borrow or return.
-  </p>
-  <div id="reader" style="max-width:420px;margin:0 auto;border-radius:20px;overflow:hidden"></div>
-</div>
+<section class="card scanner-card">
+  <div class="scanner-intro">
+    <span class="eyebrow">Quick checkout</span>
+    <h1>Scan an item</h1>
+    <p>Point your camera at an item's QR code to open its borrow and return actions.</p>
+  </div>
+  <div class="scanner-layout">
+    <div id="reader" aria-label="QR code camera scanner"></div>
+    <aside class="scanner-tip">
+      <span class="scanner-tip-icon" aria-hidden="true">▦</span>
+      <strong>Frame the whole code</strong>
+      <p>Hold your device steady with the QR code inside the camera frame. The item record will open as soon as it is recognized.</p>
+    </aside>
+  </div>
+</section>
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
+  const reader = document.getElementById('reader');
+  let scanHandled = false;
+  const html5QrCode = new Html5Qrcode('reader');
+
   function onScanSuccess(text) {
-    html5QrCode.stop().then(() => { window.location.href = text; });
+    if (scanHandled) return;
+    scanHandled = true;
+    html5QrCode.stop().then(() => {
+      window.location.href = text;
+    }).catch(() => {
+      window.location.href = text;
+    });
   }
-  const html5QrCode = new Html5Qrcode("reader");
+
   Html5Qrcode.getCameras().then(devices => {
-    if (!devices.length) throw "No camera";
-    const back = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[devices.length-1];
-    html5QrCode.start(back.id, { fps: 10, qrbox: 250 }, onScanSuccess);
-  }).catch(err => {
-    document.getElementById("reader").innerHTML =
-      "<p style='color:#fca5a5;padding:20px'>Camera unavailable. Use your phone's built-in camera app to scan the QR instead.</p>";
+    if (!devices.length) {
+      throw new Error('No camera detected');
+    }
+    const camera = devices.find(device => /back|rear|environment/i.test(device.label)) || devices[devices.length - 1];
+    return html5QrCode.start(camera.id, { fps: 10, qrbox: 250 }, onScanSuccess);
+  }).catch(() => {
+    reader.innerHTML = '<p class="scanner-error">Camera unavailable. Allow camera access or scan the QR code with your phone camera instead.</p>';
   });
 </script>
 {% endblock %}

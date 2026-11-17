@@ -1,168 +1,529 @@
 {% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+{% block section_name %}Overview{% endblock %}
 {% block content %}
-
-<div class="hero">
-  <div class="stat">
-    <div class="stat-label">Total items</div>
-    <div class="stat-value">{{ items|length }}</div>
+<section class="page-heading">
+  <div>
+    <span class="eyebrow">Your inventory</span>
+    <h1>Overview</h1>
+    <p>A clear view of what you have, what is available, and what is out in the field.</p>
   </div>
-  <div class="stat green">
-    <div class="stat-label">Available</div>
-    <div class="stat-value">{{ items|selectattr('status','equalto','available')|list|length }}</div>
-  </div>
-  <div class="stat orange">
-    <div class="stat-label">Borrowed</div>
-    <div class="stat-value">{{ items|selectattr('status','equalto','borrowed')|list|length }}</div>
-  </div>
-</div>
+  <a class="btn btn-primary" href="{{ url_for('add_item') }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+    Add item
+  </a>
+</section>
 
-<div class="toolbar">
-  <a class="btn btn-primary" href="{{ url_for('add_item') }}">Add item</a>
-  <a class="btn" href="{{ url_for('scan') }}">Scan QR</a>
+<section class="stats-grid" aria-label="Inventory summary">
+  <div class="stat-context" id="selectedItemLabel" aria-live="polite">Select an item below to view its stock breakdown.</div>
+  <article class="card stat-card">
+    <div class="stat-topline"><span class="stat-label">Total quantity</span><span class="stat-icon" aria-hidden="true">▦</span></div>
+    <strong class="stat-value" id="statTotal">—</strong>
+    <div class="stat-foot">Available plus borrowed units</div>
+  </article>
+  <article class="card stat-card available">
+    <div class="stat-topline"><span class="stat-label">Available</span><span class="stat-icon" aria-hidden="true">✓</span></div>
+    <strong class="stat-value" id="statAvailable">—</strong>
+    <div class="stat-foot">Units ready to borrow</div>
+  </article>
+  <article class="card stat-card borrowed">
+    <div class="stat-topline"><span class="stat-label">Borrowed</span><span class="stat-icon" aria-hidden="true">↗</span></div>
+    <strong class="stat-value" id="statBorrowed">—</strong>
+    <div class="stat-foot">Units currently on loan</div>
+  </article>
+</section>
 
-  <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
-    <a class="btn btn-sm" href="{{ url_for('download_db') }}" title="Download a backup of the database">
-      ⬇️ Backup
+<section class="toolbar inventory-toolbar" aria-label="Inventory actions">
+  <div class="toolbar-actions">
+    <a class="btn" href="{{ url_for('scan') }}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"></path><path d="M8 8h8v8H8z"></path></svg>
+      Scan QR
     </a>
-    <button class="btn btn-sm" type="button" onclick="document.getElementById('dbUpload').click()" title="Restore from a .db file">
-      ⬆️ Restore
-    </button>
-    <form id="dbRestoreForm" method="POST" action="{{ url_for('upload_db') }}" enctype="multipart/form-data" style="display:none">
+  </div>
+  <div class="toolbar-actions inventory-utility-actions">
+    <a class="btn" href="{{ url_for('download_db') }}" title="Download a backup of the database">↓ Backup</a>
+    <button class="btn" type="button" onclick="document.getElementById('dbUpload').click()" title="Restore from a .db file">↑ Restore</button>
+    <form id="dbRestoreForm" method="POST" action="{{ url_for('upload_db') }}" enctype="multipart/form-data" hidden>
       <input id="dbUpload" type="file" name="db_file" accept=".db" onchange="confirmRestore()">
     </form>
-    <div style="display: flex; align-items: center; gap: 8px; padding: 0 10px;
-                font-size: 12.5px; color: var(--text-subtle); font-weight: 500;">
-      <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--success);
-                   box-shadow: 0 0 8px var(--success); animation: badgePulse 2s ease-in-out infinite;"></span>
-      Live
+  </div>
+</section>
+
+<section class="toolbar" style="margin-bottom: 12px;" aria-label="Search inventory">
+  <div class="search-wrap">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
+    <input type="search" id="searchInput" class="search-input" placeholder="Search by item name or description" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button type="button" id="searchClear" class="search-clear" aria-label="Clear search" style="display:none;">×</button>
+  </div>
+  <span id="searchCount" class="search-count" aria-live="polite"></span>
+</section>
+
+<section class="card table-card view-mode-detailed">
+  <div class="table-head">
+    <div>
+      <h2>{% if current_folder %}{{ current_folder.name }}{% else %}Inventory list{% endif %}</h2>
+      <p>Open folders, drag items to organize them, or right-click entries for options in Grid view.</p>
+    </div>
+    <div class="table-head-actions">
+      <span class="eyebrow" style="margin:0;">{{ items|length + folders|length }} records</span>
+      <details class="view-settings" id="viewSettings">
+        <summary class="btn btn-sm view-settings-trigger" aria-label="View settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="7" height="7" rx="1"></rect><rect x="14" y="4" width="7" height="7" rx="1"></rect><path d="M3 16h18M3 20h18"></path></svg>
+          <span id="viewModeLabel">Details</span>
+          <svg class="view-settings-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+        </summary>
+        <div class="view-settings-menu" role="group" aria-label="Inventory view">
+          <button class="view-settings-option" type="button" data-view-mode="detailed" aria-pressed="true"><span class="view-settings-check" aria-hidden="true">✓</span>Detailed view</button>
+          <button class="view-settings-option" type="button" data-view-mode="grid" aria-pressed="false"><span class="view-settings-check" aria-hidden="true">✓</span>Grid view</button>
+        </div>
+      </details>
+      <button class="btn btn-sm btn-primary" type="button" onclick="openCreateFolderDialog()">+ New folder</button>
     </div>
   </div>
-</div>
-
-<script>
-  function confirmRestore() {
-    const file = document.getElementById('dbUpload').files[0];
-    if (!file) return;
-    if (confirm(
-      "Restore the database from:\n\n" + file.name +
-      "\n\nThis will REPLACE your current data. The existing DB is saved as database.db.bak as a safety net.\n\nContinue?"
-    )) {
-      document.getElementById('dbRestoreForm').submit();
-    } else {
-      document.getElementById('dbUpload').value = "";
-    }
-  }
-</script>
-
-<div class="toolbar" style="margin-bottom: 8px;">
-  <div class="search-wrap" style="flex: 1; max-width: 420px;">
-    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="11" cy="11" r="8"></circle>
-      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-    </svg>
-    <input type="text" id="searchInput" class="search-input"
-           placeholder="Search items by name or description…"
-           autocomplete="off" autocapitalize="off" spellcheck="false">
-    <button type="button" id="searchClear" class="search-clear" aria-label="Clear search" style="display:none;">✕</button>
-  </div>
-  <span id="searchCount" style="font-size: 12.5px; color: var(--text-subtle); align-self: center;"></span>
-</div>
-
-<div class="card" style="padding: 0; overflow: hidden;">
-  {% if items %}
-  <table id="itemsTable">
-    <thead>
-      <tr>
-        <th style="width:60px">#</th>
-        <th>Name</th>
-        <th style="width:110px">In stock</th>
-        <th style="width:140px">Status</th>
-        <th style="width:220px"></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for it in items %}
-      <tr data-search="{{ (it.name ~ ' ' ~ (it.description or '')) | lower }}">
-        <td data-label="#" style="color:var(--text-subtle); font-variant-numeric:tabular-nums;">{{ it.id }}</td>
-        <td data-label="Name"><a href="{{ url_for('view_item', item_id=it.id) }}">{{ it.name }}</a></td>
-        <td data-label="In stock">
-          <span style="font-weight:500; font-variant-numeric:tabular-nums;
-                       color:{% if it.quantity == 0 %}var(--warning){% else %}var(--text){% endif %};">
-            {{ it.quantity }}
-          </span>
-        </td>
-        <td data-label="Status">
-          {% if it.quantity == 0 %}
-            <span class="badge badge-borrowed">Out of stock</span>
-          {% else %}
-            <span class="badge badge-available">Available</span>
-          {% endif %}
-        </td>
-        <td data-label="Actions">
-          <div style="display:flex; gap:6px; justify-content:flex-end">
-            <a class="btn btn-sm" href="{{ url_for('view_item', item_id=it.id) }}">View</a>
-            <a class="btn btn-sm" href="{{ url_for('edit_item', item_id=it.id) }}">Edit</a>
-            <form method="POST" action="{{ url_for('delete_item', item_id=it.id) }}" style="display:inline" onsubmit="return confirm('Delete {{ it.name }}?');">
-              <button class="btn btn-sm btn-danger" type="submit">Delete</button>
-            </form>
-          </div>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <script>
-    (function () {
-      const input = document.getElementById('searchInput');
-      const clearBtn = document.getElementById('searchClear');
-      const count = document.getElementById('searchCount');
-      const table = document.getElementById('itemsTable');
-      if (!input || !table) return;
-      const rows = Array.from(table.querySelectorAll('tbody tr'));
-
-      function apply() {
-        const q = input.value.trim().toLowerCase();
-        let visible = 0;
-        rows.forEach(r => {
-          const hay = r.getAttribute('data-search') || '';
-          const match = !q || hay.includes(q);
-          r.style.display = match ? '' : 'none';
-          if (match) visible++;
-        });
-        // Count indicator
-        if (q) {
-          count.textContent = `${visible} of ${rows.length}`;
-          count.style.color = visible === 0 ? 'var(--warning)' : 'var(--text-subtle)';
-        } else {
-          count.textContent = '';
-          count.style.color = 'var(--text-subtle)';
-        }
-        // Show clear button only when there's text
-        clearBtn.style.display = q ? 'grid' : 'none';
-      }
-
-      input.addEventListener('input', apply);
-      clearBtn.addEventListener('click', () => {
-        input.value = '';
-        apply();
-        input.focus();
-      });
-      // Escape clears
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') { input.value = ''; apply(); }
-      });
-
-      apply();
-    })();
-  </script>
-
-  {% else %}
-  <div class="empty">
-    <div class="empty-icon">—</div>
-    <h3>No items yet</h3>
-    <p>Add your first item to get started.</p>
+  <nav class="folder-breadcrumbs" aria-label="Folder path">
+    <a class="folder-drop-target" href="{{ url_for('index') }}" data-drop-folder-id="" title="Drop here to move an item to Unfiled">All items</a>
+    {% for folder in breadcrumbs %}
+      <span aria-hidden="true">/</span>
+      <a class="folder-drop-target{% if loop.last %} current{% endif %}" href="{{ url_for('index', folder=folder.id) }}" data-drop-folder-id="{{ folder.id }}">{{ folder.name }}</a>
+    {% endfor %}
+  </nav>
+  <div id="folderMessage" class="folder-message" role="status" aria-live="polite" hidden></div>
+  {% if items or folders %}
+  <div class="table-wrap">
+    <table id="itemsTable">
+      <thead>
+        <tr><th>Name</th><th style="width:160px;">Stock / contents</th><th style="width:140px;">Status / type</th><th style="width:220px; text-align:right;">Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for folder in folders %}
+        <tr class="folder-row drop-folder-target"
+            data-folder-id="{{ folder.id }}"
+            data-folder-href="{{ url_for('index', folder=folder.id) }}"
+            data-folder-name="{{ folder.name }}"
+            data-drop-folder-id="{{ folder.id }}"
+            data-drag-folder-id="{{ folder.id }}"
+            data-search="{{ folder.name | lower }}"
+            draggable="true" tabindex="0"
+            aria-label="Open folder {{ folder.name }}">
+          <td data-label="Name">
+            <div class="item-cell">
+              <span class="item-avatar folder-avatar" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6H10l2 2h7.5A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"></path></svg>
+              </span>
+              <span><a class="item-name folder-link" href="{{ url_for('index', folder=folder.id) }}">{{ folder.name }}</a><span class="item-description">Folder · {{ folder.folder_count }} folders · {{ folder.item_count }} items</span></span>
+            </div>
+          </td>
+          <td data-label="Contents">{{ folder.folder_count + folder.item_count }} entries</td>
+          <td data-label="Type"><span class="badge badge-folder">Folder</span></td>
+          <td data-label="Actions">
+            <div class="row-actions">
+              <button class="btn btn-sm rename-folder-btn" type="button">Rename</button>
+              <form method="POST" action="{{ url_for('delete_folder', folder_id=folder.id) }}" onsubmit="return confirm('Delete this folder and all items and subfolders inside? This cannot be undone.');">
+                <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        {% for it in items %}
+        <tr class="item-row" data-search="{{ (it.name ~ ' ' ~ (it.description or '')) | lower }}"
+            data-item-id="{{ it.id }}"
+            data-item-name="{{ it.name }}"
+            data-view-href="{{ url_for('view_item', item_id=it.id, folder=current_folder.id if current_folder else None) }}"
+            data-total="{{ it.quantity + it.borrowed }}"
+            data-available="{{ it.quantity }}"
+            data-borrowed="{{ it.borrowed }}"
+            draggable="true" tabindex="0" aria-selected="false"
+            aria-label="Select {{ it.name }} for stock summary; double-click to view details">
+          <td data-label="Name">
+            <div class="item-cell">
+              <span class="item-avatar" aria-hidden="true">▦</span>
+              <span><span class="item-name">{{ it.name }}</span><span class="item-description">{{ it.description or 'No description added' }}</span></span>
+            </div>
+          </td>
+          <td data-label="Stock / contents"><span class="quantity{% if it.quantity == 0 %} zero{% endif %}">{{ it.quantity }}</span></td>
+          <td data-label="Status">
+            {% if it.quantity == 0 %}
+              <span class="badge badge-borrowed">Out of stock</span>
+            {% else %}
+              <span class="badge badge-available">Available</span>
+            {% endif %}
+          </td>
+          <td data-label="Actions">
+            <div class="row-actions">
+              <a class="btn btn-sm" href="{{ url_for('view_item', item_id=it.id, folder=current_folder.id if current_folder else None) }}">View</a>
+              <a class="btn btn-sm" href="{{ url_for('edit_item', item_id=it.id, folder=current_folder.id if current_folder else None) }}">Edit</a>
+              <form method="POST" action="{{ url_for('delete_item', item_id=it.id) }}" onsubmit="return confirm('Delete this item?');">
+                <input type="hidden" name="folder_id" value="{{ current_folder.id if current_folder else '' }}">
+                <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
   {% endif %}
-</div>
 
+  <dialog class="folder-dialog" id="createFolderDialog">
+    <form method="POST" action="{{ url_for('create_folder') }}">
+      <span class="eyebrow">New location</span>
+      <h2>Create a folder</h2>
+      <p>Folders can contain items and other folders.</p>
+      <label for="newFolderName">Folder name</label>
+      <input id="newFolderName" name="name" required maxlength="100" autocomplete="off" placeholder="e.g. Camera equipment">
+      <input type="hidden" name="parent_id" value="{{ current_folder.id if current_folder else '' }}">
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">Create folder</button>
+        <button class="btn" type="button" onclick="document.getElementById('createFolderDialog').close()">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog class="folder-dialog" id="renameFolderDialog">
+    <form method="POST" action="{{ url_for('rename_folder') }}">
+      <span class="eyebrow">Folder settings</span>
+      <h2>Rename folder</h2>
+      <label for="renameFolderName">Folder name</label>
+      <input type="hidden" id="renameFolderId" name="folder_id">
+      <input id="renameFolderName" name="name" required maxlength="100" autocomplete="off">
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">Save name</button>
+        <button class="btn" type="button" onclick="document.getElementById('renameFolderDialog').close()">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+  <div class="inventory-context-menu" id="inventoryContextMenu" role="menu" aria-label="Inventory actions" hidden></div>
+
+  <script>
+    function openCreateFolderDialog() {
+      const dialog = document.getElementById('createFolderDialog');
+      dialog.showModal();
+      document.getElementById('newFolderName').focus();
+    }
+
+    function showFolderMessage(message) {
+      const status = document.getElementById('folderMessage');
+      status.textContent = message;
+      status.hidden = false;
+      status.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    async function moveEntry(url, destinationFolderId) {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body: new URLSearchParams({ folder_id: destinationFolderId })
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          showFolderMessage(result.error || 'The move could not be completed.');
+          return;
+        }
+        window.location.reload();
+      } catch (error) {
+        console.error('Unable to move inventory entry:', error);
+        showFolderMessage('The move failed. Check your connection and try again.');
+      }
+    }
+
+    const table = document.getElementById('itemsTable');
+    const itemRows = Array.from(document.querySelectorAll('#itemsTable tbody tr[data-item-id]'));
+    const folderRows = Array.from(document.querySelectorAll('#itemsTable tbody tr[data-drag-folder-id]'));
+    const selectedItemLabel = document.getElementById('selectedItemLabel');
+    const statTotal = document.getElementById('statTotal');
+    const statAvailable = document.getElementById('statAvailable');
+    const statBorrowed = document.getElementById('statBorrowed');
+    const selectedItemStorageKey = 'invsys-selected-item';
+
+    function selectItem(row) {
+      statTotal.textContent = row.dataset.total;
+      statAvailable.textContent = row.dataset.available;
+      statBorrowed.textContent = row.dataset.borrowed;
+      selectedItemLabel.textContent = `Selected item: ${row.dataset.itemName}`;
+      sessionStorage.setItem(selectedItemStorageKey, row.dataset.itemId);
+      itemRows.forEach(otherRow => {
+        otherRow.setAttribute('aria-selected', String(otherRow === row));
+      });
+    }
+
+    const tableCard = document.querySelector('.table-card');
+    const viewSettings = document.getElementById('viewSettings');
+    const viewModeLabel = document.getElementById('viewModeLabel');
+    const viewOptions = Array.from(document.querySelectorAll('[data-view-mode]'));
+    const viewLabels = {
+      'detailed': 'Detailed view',
+      'grid': 'Grid view'
+    };
+
+    function setInventoryView(mode, returnFocus) {
+      if (!Object.prototype.hasOwnProperty.call(viewLabels, mode)) return;
+      tableCard.classList.remove(...Object.keys(viewLabels).map(view => `view-mode-${view}`));
+      tableCard.classList.add(`view-mode-${mode}`);
+      viewModeLabel.textContent = viewLabels[mode];
+      viewOptions.forEach(option => {
+        option.setAttribute('aria-pressed', String(option.dataset.viewMode === mode));
+      });
+      localStorage.setItem('invsys-inventory-view', mode);
+      viewSettings.open = false;
+      if (returnFocus) viewSettings.querySelector('summary').focus();
+    }
+
+    const storedView = localStorage.getItem('invsys-inventory-view');
+    const legacyIconViews = ['small-icons', 'medium-icons', 'large-icons', 'extra-large-icons'];
+    const savedView = storedView === 'grid' || legacyIconViews.includes(storedView)
+      ? 'grid'
+      : 'detailed';
+    setInventoryView(savedView, false);
+    viewOptions.forEach(option => {
+      option.addEventListener('click', () => setInventoryView(option.dataset.viewMode, true));
+    });
+    viewSettings.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        viewSettings.open = false;
+        viewSettings.querySelector('summary').focus();
+      }
+    });
+    document.addEventListener('click', event => {
+      if (!viewSettings.contains(event.target)) viewSettings.open = false;
+    });
+
+    const inventoryContextMenu = document.getElementById('inventoryContextMenu');
+    let contextMenuRow = null;
+
+    function closeInventoryContextMenu() {
+      inventoryContextMenu.hidden = true;
+      inventoryContextMenu.replaceChildren();
+      contextMenuRow = null;
+    }
+
+    function openRenameFolderDialog(row) {
+      document.getElementById('renameFolderId').value = row.dataset.folderId;
+      document.getElementById('renameFolderName').value = row.dataset.folderName;
+      const dialog = document.getElementById('renameFolderDialog');
+      dialog.showModal();
+      document.getElementById('renameFolderName').focus();
+    }
+
+    function showInventoryContextMenu(row, event) {
+      const actions = row.querySelector('.row-actions');
+      if (!actions) return;
+
+      contextMenuRow = row;
+      inventoryContextMenu.replaceChildren();
+      inventoryContextMenu.setAttribute(
+        'aria-label',
+        `${row.dataset.itemName || row.dataset.folderName} actions`
+      );
+
+      if (row.dataset.folderId) {
+        const openLink = document.createElement('a');
+        openLink.href = row.dataset.folderHref;
+        openLink.textContent = 'Open';
+        inventoryContextMenu.append(openLink);
+      }
+
+      Array.from(actions.children).forEach(action => {
+        inventoryContextMenu.append(action.cloneNode(true));
+      });
+
+      inventoryContextMenu.querySelectorAll('a, button').forEach(action => {
+        action.setAttribute('role', 'menuitem');
+        if (action.classList.contains('btn-danger')) action.classList.add('context-danger');
+      });
+      inventoryContextMenu.querySelectorAll('form').forEach(form => form.setAttribute('role', 'none'));
+      const renameButton = inventoryContextMenu.querySelector('.rename-folder-btn');
+      if (renameButton) {
+        renameButton.addEventListener('click', () => {
+          closeInventoryContextMenu();
+          openRenameFolderDialog(row);
+        });
+      }
+
+      inventoryContextMenu.hidden = false;
+      inventoryContextMenu.style.left = '0px';
+      inventoryContextMenu.style.top = '0px';
+      const bounds = inventoryContextMenu.getBoundingClientRect();
+      const rowBounds = row.getBoundingClientRect();
+      const x = event.detail === 0 ? rowBounds.left : event.clientX;
+      const y = event.detail === 0 ? rowBounds.top + rowBounds.height / 2 : event.clientY;
+      inventoryContextMenu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - bounds.width - 8))}px`;
+      inventoryContextMenu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - bounds.height - 8))}px`;
+      inventoryContextMenu.querySelector('a, button')?.focus();
+    }
+
+    inventoryContextMenu.addEventListener('keydown', event => {
+      const menuItems = Array.from(inventoryContextMenu.querySelectorAll('a, button'));
+      const currentIndex = menuItems.indexOf(document.activeElement);
+      if (event.key === 'Escape') {
+        const row = contextMenuRow;
+        closeInventoryContextMenu();
+        row?.focus();
+      } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const direction = event.key === 'ArrowDown' ? 1 : -1;
+        const nextIndex = (currentIndex + direction + menuItems.length) % menuItems.length;
+        menuItems[nextIndex]?.focus();
+      } else if (event.key === 'Home') {
+        event.preventDefault();
+        menuItems[0]?.focus();
+      } else if (event.key === 'End') {
+        event.preventDefault();
+        menuItems[menuItems.length - 1]?.focus();
+      }
+    });
+    document.addEventListener('pointerdown', event => {
+      if (!inventoryContextMenu.hidden && !inventoryContextMenu.contains(event.target)) {
+        closeInventoryContextMenu();
+      }
+    });
+    window.addEventListener('scroll', closeInventoryContextMenu, true);
+    window.addEventListener('resize', closeInventoryContextMenu);
+
+    if (table) {
+      table.addEventListener('contextmenu', event => {
+        const row = event.target.closest('tr[data-item-id], tr[data-drag-folder-id]');
+        if (!row || !tableCard.classList.contains('view-mode-grid')) return;
+        if (event.target.closest('button, form, input, textarea, select')) return;
+        event.preventDefault();
+        showInventoryContextMenu(row, event);
+      });
+
+      const searchInput = document.getElementById('searchInput');
+      const clearButton = document.getElementById('searchClear');
+      const searchCount = document.getElementById('searchCount');
+      const rows = Array.from(table.querySelectorAll('tbody tr'));
+
+      function applySearch() {
+        const query = searchInput.value.trim().toLowerCase();
+        let visible = 0;
+        rows.forEach(row => {
+          const match = !query || (row.getAttribute('data-search') || '').includes(query);
+          row.style.display = match ? '' : 'none';
+          if (match) visible++;
+        });
+        searchCount.textContent = query ? `${visible} of ${rows.length}` : '';
+        searchCount.style.color = query && visible === 0 ? 'var(--amber)' : 'var(--muted)';
+        clearButton.style.display = query ? 'grid' : 'none';
+      }
+
+      searchInput.addEventListener('input', applySearch);
+      clearButton.addEventListener('click', () => {
+        searchInput.value = '';
+        applySearch();
+        searchInput.focus();
+      });
+      searchInput.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+          searchInput.value = '';
+          applySearch();
+        }
+      });
+      applySearch();
+
+      itemRows.forEach(row => {
+        row.addEventListener('click', event => {
+          if (event.target.closest('a, button, form, input, textarea, select')) return;
+          selectItem(row);
+        });
+        row.addEventListener('dblclick', event => {
+          if (event.target.closest('a, button, form, input, textarea, select')) return;
+          window.location.href = row.dataset.viewHref;
+        });
+        row.addEventListener('keydown', event => {
+          if ((event.key === 'Enter' || event.key === ' ') &&
+              !event.target.closest('a, button, form, input, textarea, select')) {
+            event.preventDefault();
+            selectItem(row);
+          }
+        });
+      });
+
+      folderRows.forEach(row => {
+        row.addEventListener('click', event => {
+          if (event.target.closest('a, button, form, input, textarea, select')) return;
+          window.location.href = row.dataset.folderHref;
+        });
+        row.addEventListener('keydown', event => {
+          if (event.target.closest('a, button, form, input, textarea, select')) return;
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            window.location.href = row.dataset.folderHref;
+          }
+        });
+        row.querySelector('.rename-folder-btn').addEventListener('click', () => openRenameFolderDialog(row));
+      });
+
+      [...itemRows, ...folderRows].forEach(row => {
+        row.addEventListener('dragstart', event => {
+          if (event.target.closest('.row-actions')) {
+            event.preventDefault();
+            return;
+          }
+          if (row.dataset.itemId) {
+            event.dataTransfer.setData('application/x-invsys-item', row.dataset.itemId);
+          } else {
+            event.dataTransfer.setData('application/x-invsys-folder', row.dataset.folderId);
+          }
+          event.dataTransfer.effectAllowed = 'move';
+          row.classList.add('dragging');
+        });
+        row.addEventListener('dragend', () => row.classList.remove('dragging'));
+      });
+    }
+
+    document.querySelectorAll('[data-drop-folder-id]').forEach(target => {
+      target.addEventListener('dragover', event => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        target.classList.add('drop-active');
+      });
+      target.addEventListener('dragleave', event => {
+        if (!target.contains(event.relatedTarget)) target.classList.remove('drop-active');
+      });
+      target.addEventListener('drop', event => {
+        event.preventDefault();
+        target.classList.remove('drop-active');
+        const destinationFolderId = target.dataset.dropFolderId;
+        const itemId = event.dataTransfer.getData('application/x-invsys-item');
+        const folderId = event.dataTransfer.getData('application/x-invsys-folder');
+        if (itemId) {
+          moveEntry(`/items/${itemId}/move`, destinationFolderId);
+        } else if (folderId) {
+          moveEntry(`/folders/${folderId}/move`, destinationFolderId);
+        }
+      });
+    });
+
+    const previouslySelectedId = sessionStorage.getItem(selectedItemStorageKey);
+    const previouslySelectedRow = itemRows.find(row => row.dataset.itemId === previouslySelectedId);
+    if (previouslySelectedRow) {
+      selectItem(previouslySelectedRow);
+    } else if (previouslySelectedId) {
+      sessionStorage.removeItem(selectedItemStorageKey);
+    }
+
+    function confirmRestore() {
+      const file = document.getElementById('dbUpload').files[0];
+      if (!file) return;
+      if (confirm(
+        "Restore the database from:\n\n" + file.name +
+        "\n\nThis will replace your current data. The existing database is saved as database.db.bak as a safety net.\n\nContinue?"
+      )) {
+        document.getElementById('dbRestoreForm').submit();
+      } else {
+        document.getElementById('dbUpload').value = "";
+      }
+    }
+  </script>
+  {% if not items and not folders %}
+  <div class="empty-state">
+    <div class="empty-illustration" aria-hidden="true">▦</div>
+    <h3>{% if current_folder %}This folder is empty{% else %}Your inventory starts here{% endif %}</h3>
+    <p>{% if current_folder %}New items start in Unfiled. Create a subfolder or move items here to fill this folder.{% else %}Add an item or create a folder to start organizing your inventory.{% endif %}</p>
+    <a class="btn btn-primary" href="{{ url_for('add_item') }}">{% if current_folder %}Add an unfiled item{% else %}Add your first item{% endif %}</a>
+  </div>
+  {% endif %}
+</section>
 {% endblock %}

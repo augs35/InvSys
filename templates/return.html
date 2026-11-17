@@ -1,19 +1,31 @@
 {% extends "base.html" %}
+{% block title %}Return {{ item.name }}{% endblock %}
+{% block section_name %}Return item{% endblock %}
 {% block content %}
-<div class="card" style="max-width: 560px;">
-  <h2>Return "{{ item.name }}"</h2>
-  <p style="color:var(--text-muted); margin-bottom: 20px; font-size: 13.5px;">
-    On loan: <strong style="color:var(--text)">{{ outstanding }}</strong>
-    · In stock: <strong style="color:var(--text)">{{ item.quantity }}</strong>
-  </p>
+<div class="page-heading">
+  <div>
+    <span class="eyebrow"><a href="{{ url_for('view_item', item_id=item.id, folder=folder_id) }}">{{ item.name }}</a> / Check-in</span>
+    <h1>Return an item</h1>
+    <p>Record the units coming back into your available stock.</p>
+  </div>
+</div>
+<section class="card form-card">
+  <div class="record-summary">
+    <span class="record-summary-icon" aria-hidden="true">↙</span>
+    <span><strong>{{ item.name }}</strong><span>{{ outstanding }} on loan · {{ item.quantity }} currently in stock</span></span>
+  </div>
   <form method="POST">
-    <label>Quantity to return</label>
-    <input name="qty" type="number" min="1" max="{{ outstanding }}" value="{{ outstanding }}" required autofocus>
-
+    <input type="hidden" name="folder" value="{{ folder_id if folder_id else '' }}">
+    <div class="form-section-label">Return details</div>
+    <div class="field">
+      <label for="qty">Quantity to return</label>
+      <input id="qty" name="qty" type="number" min="1" max="{{ outstanding }}" value="{{ outstanding }}" required inputmode="numeric" autofocus>
+      <span class="field-hint">Up to {{ outstanding }} currently on loan.</span>
+    </div>
     <div class="form-actions">
       <button class="btn btn-primary" type="submit">Confirm return</button>
-      <a class="btn" href="{{ url_for('view_item', item_id=item.id) }}">Cancel</a>
+      <a class="btn" href="{{ url_for('view_item', item_id=item.id, folder=folder_id) }}">Cancel</a>
     </div>
   </form>
-</div>
+</section>
 {% endblock %}

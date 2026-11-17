@@ -1,5 +1,14 @@
 {% extends "base.html" %}
+{% block title %}{{ item.name }}{% endblock %}
+{% block section_name %}Item details{% endblock %}
 {% block content %}
+<div class="page-heading">
+  <div>
+    <span class="eyebrow"><a href="{{ url_for('index', folder=folder_id) }}">Inventory</a> / Item details</span>
+    <h1>Item details</h1>
+    <p>Manage stock, check availability, and review recent activity.</p>
+  </div>
+</div>
 
 {% if folder %}
 <div class="breadcrumb">
@@ -14,74 +23,71 @@
 <div class="card">
   <div class="item-header">
     <div>
-      <div class="item-title">{{ item.name }}</div>
-      <div style="margin-top:10px">
-        {% if item.quantity == 0 %}
-          <span class="badge badge-borrowed">Out of stock</span>
-        {% else %}
-          <span class="badge badge-available">Available</span>
-        {% endif %}
-      </div>
+      <span class="eyebrow">Inventory record</span>
+      <h1>{{ item.name }}</h1>
+      {% if item.quantity == 0 %}
+        <span class="badge badge-borrowed">Out of stock</span>
+      {% else %}
+        <span class="badge badge-available">Available</span>
+      {% endif %}
     </div>
-    <div style="text-align:center">
+    <div class="qr-block">
       <div class="qr-wrap" id="qrThumb" role="button" tabindex="0" aria-label="Enlarge QR code">
-        <img src="{{ url_for('qr_image', item_id=item.id) }}" alt="QR">
+        <img src="{{ url_for('qr_image', item_id=item.id) }}" alt="QR code for {{ item.name }}">
       </div>
-      <div class="qr-hint">Click to enlarge</div>
+      <div class="qr-hint">Select to enlarge</div>
     </div>
   </div>
 
-  <div class="info-grid">
-    <div class="info-cell"><div class="k">ID</div><div class="v">#{{ item.id }}</div></div>
+  <div class="detail-grid">
     <div class="info-cell"><div class="k">In stock</div><div class="v">{{ item.quantity }}</div></div>
     <div class="info-cell"><div class="k">On loan</div><div class="v">{{ outstanding }}</div></div>
-    <div class="info-cell"><div class="k">Description</div><div class="v">{{ item.description or '—' }}</div></div>
+    <div class="info-cell description"><div class="k">Description</div><div class="v">{{ item.description or '—' }}</div></div>
   </div>
 
-  <div class="form-actions">
+  <div class="detail-actions">
     {% if item.quantity > 0 %}
-      <a class="btn btn-success" href="{{ url_for('borrow_item', item_id=item.id) }}">Borrow</a>
+      <a class="btn btn-success" href="{{ url_for('borrow_item', item_id=item.id, folder=folder_id) }}">Borrow item</a>
     {% endif %}
     {% if outstanding > 0 %}
-      <a class="btn btn-primary" href="{{ url_for('return_item', item_id=item.id) }}">Return</a>
+      <a class="btn btn-primary" href="{{ url_for('return_item', item_id=item.id, folder=folder_id) }}">Record a return</a>
     {% endif %}
-    <a class="btn" href="{{ url_for('edit_item', item_id=item.id) }}">Edit</a>
-    <form method="POST" action="{{ url_for('delete_item', item_id=item.id) }}" style="display:inline" onsubmit="return confirm('Delete this item?');">
-      <button class="btn btn-danger" type="submit">Delete</button>
+    <a class="btn" href="{{ url_for('edit_item', item_id=item.id, folder=folder_id) }}">Edit details</a>
+    <form method="POST" action="{{ url_for('delete_item', item_id=item.id) }}" onsubmit="return confirm('Delete this item?');">
+      <input type="hidden" name="folder_id" value="{{ folder_id if folder_id else '' }}">
+      <button class="btn btn-danger" type="submit">Delete item</button>
     </form>
-    <a class="btn" href="{{ url_for('index') }}">Back</a>
+    <a class="btn btn-quiet" href="{{ url_for('index', folder=folder_id) }}">Back to inventory</a>
   </div>
-</div>
+</section>
 
-<div class="card">
-  <h3>Activity</h3>
+<div class="section-heading"><h2>Recent activity</h2><span>{{ logs|length }} records</span></div>
+<section class="card activity-card">
   {% if logs %}
     <div class="timeline">
       {% for log in logs %}
       <div class="timeline-item {{ log.action }}">
-        <div class="timeline-head">
-          {% if log.action == 'borrow' %}Borrowed{% else %}Returned{% endif %}
-          · <strong>{{ log.qty }}</strong>
+        <div>
+          <div class="timeline-head">{% if log.action == 'borrow' %}Borrowed{% else %}Returned{% endif %}</div>
+          <div class="timeline-meta"><strong>{{ log.borrower }}</strong> · {{ log.timestamp | pretty_time }}</div>
         </div>
-        <div class="timeline-meta">
-          <strong>{{ log.borrower }}</strong> · {{ log.timestamp | pretty_time }}
-        </div>
+        <span class="timeline-qty">× {{ log.qty }}</span>
       </div>
       {% endfor %}
     </div>
   {% else %}
-    <div class="empty">
-      <div class="empty-icon">—</div>
-      <p>No activity yet.</p>
+    <div class="empty-state" style="padding:30px 15px;">
+      <div class="empty-illustration" aria-hidden="true">↻</div>
+      <h3>No activity yet</h3>
+      <p>Borrow and return events will appear here.</p>
     </div>
   {% endif %}
-</div>
+</section>
 
 <div class="qr-modal" id="qrModal" onclick="closeQR(event)">
-  <button class="qr-modal-close" aria-label="Close" onclick="closeQR(event, true)">✕</button>
-  <img id="qrLarge" src="{{ url_for('qr_image', item_id=item.id) }}" alt="QR Code">
+  <button class="qr-modal-close" type="button" aria-label="Close" onclick="closeQR(event, true)">×</button>
+  <img id="qrLarge" src="{{ url_for('qr_image', item_id=item.id) }}" alt="Large QR code for {{ item.name }}">
 </div>
-
 <script>
   const modal = document.getElementById('qrModal');
   const thumb = document.getElementById('qrThumb');
@@ -89,19 +95,21 @@
     modal.classList.add('open');
     document.body.style.overflow = 'hidden';
   }
-  function closeQR(e, force) {
-    if (force || e.target === modal) {
+  function closeQR(event, force) {
+    if (force || event.target === modal) {
       modal.classList.remove('open');
       document.body.style.overflow = '';
     }
   }
   thumb.addEventListener('click', openQR);
-  thumb.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openQR(); }
+  thumb.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openQR();
+    }
   });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeQR(e, true);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') closeQR(event, true);
   });
 </script>
-
 {% endblock %}

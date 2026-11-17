@@ -1,21 +1,35 @@
 {% extends "base.html" %}
+{% block title %}Borrow {{ item.name }}{% endblock %}
+{% block section_name %}Borrow item{% endblock %}
 {% block content %}
-<div class="card" style="max-width: 560px;">
-  <h2>Borrow "{{ item.name }}"</h2>
-  <p style="color:var(--text-muted); margin-bottom: 20px; font-size: 13.5px;">
-    In stock: <strong style="color:var(--text)">{{ item.quantity }}</strong>
-  </p>
+<div class="page-heading">
+  <div>
+    <span class="eyebrow"><a href="{{ url_for('view_item', item_id=item.id, folder=folder_id) }}">{{ item.name }}</a> / Checkout</span>
+    <h1>Borrow an item</h1>
+    <p>Record who is taking this item and how many units are leaving stock.</p>
+  </div>
+</div>
+<section class="card form-card">
+  <div class="record-summary">
+    <span class="record-summary-icon" aria-hidden="true">↗</span>
+    <span><strong>{{ item.name }}</strong><span>Available now: {{ item.quantity }}</span></span>
+  </div>
   <form method="POST">
-    <label>Borrower's name</label>
-    <input name="borrower" required placeholder="" autofocus>
-
-    <label>Quantity</label>
-    <input name="qty" type="number" min="1" max="{{ item.quantity }}" value="1" required>
-
+    <input type="hidden" name="folder" value="{{ folder_id if folder_id else '' }}">
+    <div class="form-section-label">Checkout details</div>
+    <div class="field">
+      <label for="borrower">Borrower's name</label>
+      <input id="borrower" name="borrower" required placeholder="Enter the borrower's name" autocomplete="name" autofocus>
+    </div>
+    <div class="field">
+      <label for="qty">Quantity</label>
+      <input id="qty" name="qty" type="number" min="1" max="{{ item.quantity }}" value="1" required inputmode="numeric">
+      <span class="field-hint">Up to {{ item.quantity }} available.</span>
+    </div>
     <div class="form-actions">
-      <button class="btn btn-primary" type="submit">Confirm borrow</button>
-      <a class="btn" href="{{ url_for('view_item', item_id=item.id) }}">Cancel</a>
+      <button class="btn btn-primary" type="submit">Confirm checkout</button>
+      <a class="btn" href="{{ url_for('view_item', item_id=item.id, folder=folder_id) }}">Cancel</a>
     </div>
   </form>
-</div>
+</section>
 {% endblock %}
